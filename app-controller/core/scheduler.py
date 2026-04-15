@@ -97,6 +97,55 @@ class Scheduler:
         except Exception as e:
             pass
     
+    def schedule_preload(self, model_name: str) -> bool:
+        """手动调度模型预加载"""
+        if not self.is_model_available(model_name):
+            return False
+        
+        config = self.get_model_config(model_name)
+        if config:
+            config["preload"] = True
+            self.config["models"][model_name] = config
+        
+        try:
+            loop = asyncio.get_running_loop()
+            asyncio.create_task(self._preload_model(model_name))
+            return True
+        except RuntimeError:
+            return False
+    
+    def cancel_preload(self, model_name: str) -> bool:
+        """取消模型预加载"""
+        if not self.is_model_available(model_name):
+            return False
+        
+        config = self.get_model_config(model_name)
+        if config:
+            config["preload"] = False
+            self.config["models"][model_name] = config
+        
+        if model_name in self.preloaded_models:
+            if self.get_active_requests(model_name) == 0:
+                asyncio.create_task(self.stop_model(model_name))
+                self.preloaded_models.discard(model_name)
+                return True
+        
+        return False
+    
+    def get_preload_status(self) -> Dict[str, Dict]:
+        """获取所有模型的预加载状态"""
+        status = {}
+        for model_name in self.get_available_models():
+            config = self.get_model_config(model_name)
+            status[model_name] = {
+                "preload_enabled": config.get("preload", False),
+                "preloaded": model_name in self.preloaded_models,
+                "running": self.is_model_running(model_name),
+                "active_requests": self.get_active_requests(model_name),
+                "keep_alive": config.get("keep_alive", False)
+            }
+        return status
+    
     def get_available_models(self) -> List[str]:
         return list(self.config.get("models", {}).keys())
     
