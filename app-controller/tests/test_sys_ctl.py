@@ -1,0 +1,111 @@
+import pytest
+from unittest.mock import Mock, patch
+from core.sys_ctl import SystemController
+
+class TestSystemController:
+    @patch('os.geteuid')
+    def test_init_use_sudo(self, mock_geteuid):
+        mock_geteuid.return_value = 1000
+        controller = SystemController()
+        assert controller._use_sudo is True
+
+    @patch('os.geteuid')
+    def test_init_root_user(self, mock_geteuid):
+        mock_geteuid.return_value = 0
+        controller = SystemController()
+        assert controller._use_sudo is False
+
+    @patch('subprocess.run')
+    def test_start_service_success(self, mock_run):
+        mock_run.return_value.returncode = 0
+        controller = SystemController()
+        result = controller.start_service("vllm-gemma")
+        assert result is True
+        mock_run.assert_called_once()
+
+    @patch('subprocess.run')
+    def test_start_service_failure(self, mock_run):
+        mock_run.return_value.returncode = 1
+        controller = SystemController()
+        result = controller.start_service("vllm-gemma")
+        assert result is False
+
+    @patch('subprocess.run')
+    def test_stop_service(self, mock_run):
+        mock_run.return_value.returncode = 0
+        controller = SystemController()
+        result = controller.stop_service("vllm-gemma")
+        assert result is True
+
+    @patch('subprocess.run')
+    def test_restart_service(self, mock_run):
+        mock_run.return_value.returncode = 0
+        controller = SystemController()
+        result = controller.restart_service("vllm-gemma")
+        assert result is True
+
+    @patch('subprocess.run')
+    def test_get_service_status_active(self, mock_run):
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "active\n"
+        controller = SystemController()
+        status = controller.get_service_status("vllm-gemma")
+        assert status == "active"
+
+    @patch('subprocess.run')
+    def test_get_service_status_inactive(self, mock_run):
+        mock_run.return_value.returncode = 3
+        controller = SystemController()
+        status = controller.get_service_status("vllm-gemma")
+        assert status == "inactive"
+
+    @patch('subprocess.run')
+    def test_is_service_running(self, mock_run):
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "active\n"
+        controller = SystemController()
+        assert controller.is_service_running("vllm-gemma") is True
+        
+        mock_run.return_value.returncode = 3
+        assert controller.is_service_running("vllm-gemma") is False
+
+    @patch('subprocess.run')
+    def test_enable_service(self, mock_run):
+        mock_run.return_value.returncode = 0
+        controller = SystemController()
+        result = controller.enable_service("vllm-gemma")
+        assert result is True
+
+    @patch('subprocess.run')
+    def test_disable_service(self, mock_run):
+        mock_run.return_value.returncode = 0
+        controller = SystemController()
+        result = controller.disable_service("vllm-gemma")
+        assert result is True
+
+    @patch('subprocess.run')
+    def test_get_service_info(self, mock_run):
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = '{"Id": "vllm-gemma.service", "ActiveState": "active"}'
+        controller = SystemController()
+        info = controller.get_service_info("vllm-gemma")
+        assert info is not None
+        assert info["Id"] == "vllm-gemma.service"
+
+    @patch('subprocess.run')
+    def test_list_services(self, mock_run):
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = '[{"id": "vllm-gemma.service"}, {"id": "vllm-llama.service"}]'
+        controller = SystemController()
+        services = controller.list_services()
+        assert len(services) == 2
+
+    @patch('subprocess.run')
+    def test_get_process_info(self, mock_run):
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = "p1234\ncvllm"
+        controller = SystemController()
+        info = controller.get_process_info(8000)
+        assert info is not None
+        assert info["pid"] == 1234
+        assert info["command"] == "vllm"

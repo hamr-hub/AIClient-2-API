@@ -1,11 +1,12 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Set
 import asyncio
 import httpx
 import json
 import os
+from datetime import datetime
 
 from core.scheduler import Scheduler
 from core.monitor import GPUMonitor
@@ -24,6 +25,51 @@ app.add_middleware(
 gpu_monitor = GPUMonitor()
 sys_controller = SystemController()
 scheduler = Scheduler(gpu_monitor, sys_controller)
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.add(websocket)
+    
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+    
+    async def broadcast(self, message: Dict[str, Any]):
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except:
+                disconnected.append(connection)
+        
+        for conn in disconnected:
+            self.disconnect(conn)
+
+manager = ConnectionManager()
+
+async def gpu_monitor_task():
+    while True:
+        try:
+            gpu_status = gpu_monitor.get_gpu_status()
+            model_status = scheduler.get_model_status()
+            queue_status = scheduler.rate_limiter.get_all_queue_status()
+            
+            message = {
+                "type": "status_update",
+                "timestamp": datetime.now().isoformat(),
+                "gpu": gpu_status,
+                "models": model_status,
+                "queue": queue_status
+            }
+            
+            await manager.broadcast(message)
+        except Exception as e:
+            pass
+        
+        await asyncio.sleep(1)
 
 class ChatCompletionRequest(BaseModel):
     model: str
@@ -69,18 +115,23 @@ async def chat_completions(request: ChatCompletionRequest):
     if not scheduler.is_model_available(model_name):
         raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
     
-    gpu_status = gpu_monitor.get_gpu_status()
-    if gpu_status and gpu_status['available_memory'] < 2 * 1024 ** 3:
-        raise HTTPException(status_code=503, detail="Insufficient GPU memory available")
-    
-    if not scheduler.is_model_running(model_name):
-        await scheduler.start_model(model_name)
-        await asyncio.sleep(5)
-    
-    vllm_port = scheduler.get_model_port(model_name)
-    vllm_url = f"http://localhost:{vllm_port}/v1/chat/completions"
+    if not scheduler.acquire_request(model_name):
+        active = scheduler.get_active_requests(model_name)
+        limit = scheduler.get_concurrency_limit()
+        raise HTTPException(status_code=429, detail=f"Too Many Requests: {active}/{limit} concurrent requests")
     
     try:
+        gpu_status = gpu_monitor.get_gpu_status()
+        if gpu_status and gpu_status['available_memory'] < 2 * 1024 ** 3:
+            raise HTTPException(status_code=503, detail="Insufficient GPU memory available")
+        
+        if not scheduler.is_model_running(model_name):
+            await scheduler.start_model(model_name)
+            await asyncio.sleep(5)
+        
+        vllm_port = scheduler.get_model_port(model_name)
+        vllm_url = f"http://localhost:{vllm_port}/v1/chat/completions"
+        
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
                 vllm_url,
@@ -110,6 +161,8 @@ async def chat_completions(request: ChatCompletionRequest):
                 return result
     except httpx.HTTPError as e:
         raise HTTPException(status_code=503, detail=f"Model service unavailable: {str(e)}")
+    finally:
+        scheduler.release_request(model_name)
 
 @app.get("/manage/gpu")
 async def get_gpu_status():
@@ -126,9 +179,22 @@ async def get_model_status():
         status[model] = {
             "running": scheduler.is_model_running(model),
             "port": scheduler.get_model_port(model),
-            "service": scheduler.get_model_service(model)
+            "service": scheduler.get_model_service(model),
+            "active_requests": scheduler.get_active_requests(model)
         }
     return status
+
+@app.get("/manage/queue")
+async def get_queue_status():
+    models = scheduler.get_available_models()
+    queue_info = {}
+    for model in models:
+        queue_info[model] = {
+            "active_requests": scheduler.get_active_requests(model),
+            "concurrency_limit": scheduler.get_concurrency_limit(),
+            "can_accept": scheduler.can_accept_request(model)
+        }
+    return queue_info
 
 @app.post("/manage/models/{model_name}/start")
 async def start_model(model_name: str):
