@@ -95,13 +95,13 @@ class Scheduler:
     def get_model_config(self, model_name: str) -> Optional[Dict]:
         return self.config.get('models', {}).get(model_name)
     
-    def get_model_port(self, model_name: str) -> int:
+    def get_model_port(self, model_name: str) -> Optional[int]:
         config = self.get_model_config(model_name)
-        return config.get('port', 8000) if config else 8000
+        return config.get('port') if config else None
     
-    def get_model_service(self, model_name: str) -> str:
+    def get_model_service(self, model_name: str) -> Optional[str]:
         config = self.get_model_config(model_name)
-        return config.get('service', '') if config else ''
+        return config.get('service') if config else None
     
     def get_min_available_memory(self) -> int:
         value = self.config.get('settings', {}).get('min_available_memory', '2GB')
@@ -152,7 +152,7 @@ class Scheduler:
     
     def is_queue_available(self, model_name: str) -> bool:
         """检查队列是否可用"""
-        return self.rate_limiter.is_queue_available(model_name)
+        return self.rate_limiter.get_total_queue_length(model_name) < 100
     
     def get_queue_length(self, model_name: str) -> int:
         """获取队列长度"""
@@ -222,7 +222,7 @@ class Scheduler:
         
         gpu_status = self.gpu_monitor.get_gpu_status()
         if gpu_status:
-            required_memory = config.get('required_memory', 0)
+            required_memory = _parse_memory_size(config.get('required_memory', 0))
             if gpu_status.get('available_memory', 0) < required_memory + self.get_min_available_memory():
                 await self._free_up_memory(model_name)
         

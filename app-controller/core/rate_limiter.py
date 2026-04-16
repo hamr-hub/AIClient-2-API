@@ -77,7 +77,7 @@ class RateLimiter:
         """检查队列是否还有空间"""
         if not self.client:
             return False
-        return self.get_queue_length(model_name) < self.max_queue_length
+        return self.get_total_queue_length(model_name) < self.max_queue_length
     
     async def wait_for_slot(self, model_name: str, max_concurrent: int, timeout: int = 30) -> bool:
         """等待可用槽位，超时返回False"""
@@ -160,6 +160,14 @@ class RateLimiter:
         return None
     
     def get_queue_length(self, model_name: str) -> int:
+        if not self.client:
+            return 0
+        
+        queue_key = self._get_queue_key(model_name)
+        return self.client.llen(queue_key)
+    
+    def get_total_queue_length(self, model_name: str) -> int:
+        """获取所有优先级队列的总长度"""
         if not self.client:
             return 0
         
