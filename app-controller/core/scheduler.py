@@ -1,6 +1,7 @@
 import yaml
 import os
 import asyncio
+import httpx
 from typing import Dict, Optional, List, Set
 from datetime import datetime, timedelta
 from .rate_limiter import RateLimiter
@@ -74,244 +75,227 @@ class Scheduler:
                 "concurrency_limit": 4,
                 "min_available_memory": 2 * 1024 ** 3,
                 "preload_timeout": 120,
-                "idle_timeout": 300
+                "idle_timeout": 300,
+                "memory_cleanup_delay": 3,
+                "gpu_memory_utilization": 0.9
             }
         }
     
     def _init_preloaded_models(self):
-        preload_models = [name for name, cfg in self.config.get("models", {}).items() if cfg.get("preload", False)]
-        if not preload_models:
-            return
-        
-        try:
-            loop = asyncio.get_running_loop()
-            for model_name in preload_models:
-                asyncio.create_task(self._preload_model(model_name))
-        except RuntimeError:
-            pass
-    
-    async def _preload_model(self, model_name: str):
-        try:
-            await self.start_model(model_name)
-            self.preloaded_models.add(model_name)
-        except Exception as e:
-            pass
-    
-    def schedule_preload(self, model_name: str) -> bool:
-        """手动调度模型预加载"""
-        if not self.is_model_available(model_name):
-            return False
-        
-        config = self.get_model_config(model_name)
-        if config:
-            config["preload"] = True
-            self.config["models"][model_name] = config
-        
-        try:
-            loop = asyncio.get_running_loop()
-            asyncio.create_task(self._preload_model(model_name))
-            return True
-        except RuntimeError:
-            return False
-    
-    def cancel_preload(self, model_name: str) -> bool:
-        """取消模型预加载"""
-        if not self.is_model_available(model_name):
-            return False
-        
-        config = self.get_model_config(model_name)
-        if config:
-            config["preload"] = False
-            self.config["models"][model_name] = config
-        
-        if model_name in self.preloaded_models:
-            if self.get_active_requests(model_name) == 0:
-                asyncio.create_task(self.stop_model(model_name))
-                self.preloaded_models.discard(model_name)
-                return True
-        
-        return False
-    
-    def get_preload_status(self) -> Dict[str, Dict]:
-        """获取所有模型的预加载状态"""
-        status = {}
-        for model_name in self.get_available_models():
-            config = self.get_model_config(model_name)
-            status[model_name] = {
-                "preload_enabled": config.get("preload", False),
-                "preloaded": model_name in self.preloaded_models,
-                "running": self.is_model_running(model_name),
-                "active_requests": self.get_active_requests(model_name),
-                "keep_alive": config.get("keep_alive", False)
-            }
-        return status
+        for model_name, model_config in self.config.get('models', {}).items():
+            if model_config.get('preload', False):
+                self.preloaded_models.add(model_name)
     
     def get_available_models(self) -> List[str]:
-        return list(self.config.get("models", {}).keys())
+        return list(self.config.get('models', {}).keys())
     
     def is_model_available(self, model_name: str) -> bool:
-        return model_name in self.config.get("models", {})
+        return model_name in self.config.get('models', {})
     
     def get_model_config(self, model_name: str) -> Optional[Dict]:
-        return self.config.get("models", {}).get(model_name)
+        return self.config.get('models', {}).get(model_name)
     
-    def get_model_service(self, model_name: str) -> Optional[str]:
+    def get_model_port(self, model_name: str) -> int:
         config = self.get_model_config(model_name)
-        return config.get("service") if config else None
+        return config.get('port', 8000) if config else 8000
     
-    def get_model_port(self, model_name: str) -> Optional[int]:
+    def get_model_service(self, model_name: str) -> str:
         config = self.get_model_config(model_name)
-        return config.get("port") if config else None
+        return config.get('service', '') if config else ''
+    
+    def get_min_available_memory(self) -> int:
+        return self.config.get('settings', {}).get('min_available_memory', 2 * 1024 ** 3)
+    
+    def get_concurrency_limit(self) -> int:
+        return self.config.get('settings', {}).get('concurrency_limit', 4)
     
     def is_model_running(self, model_name: str) -> bool:
-        service_name = self.get_model_service(model_name)
-        if not service_name:
-            return False
-        return self.sys_controller.is_service_running(service_name)
+        if model_name in self.running_models:
+            service_name = self.get_model_service(model_name)
+            if self.sys_controller.is_service_running(service_name):
+                return True
+            del self.running_models[model_name]
+        return False
     
     def is_model_preloaded(self, model_name: str) -> bool:
         return model_name in self.preloaded_models
     
-    def can_accept_request(self, model_name: str) -> bool:
-        concurrency_limit = self.get_concurrency_limit()
-        return self.rate_limiter.is_available(model_name, concurrency_limit)
+    def get_model_last_used(self, model_name: str) -> Optional[datetime]:
+        return self.model_last_used.get(model_name)
     
-    def is_queue_available(self, model_name: str) -> bool:
-        """检查队列是否可用"""
-        return self.rate_limiter.is_queue_available(model_name)
-    
-    def get_queue_length(self, model_name: str) -> int:
-        """获取队列长度"""
-        return self.rate_limiter.get_queue_length(model_name)
-    
-    def get_wait_time_estimate(self, model_name: str) -> float:
-        """估算等待时间"""
-        return self.rate_limiter.get_wait_time_estimate(model_name, self.get_concurrency_limit())
-    
-    def enqueue_request(self, model_name: str, request_data: Dict) -> str:
-        """将请求加入队列"""
-        return self.rate_limiter.enqueue_request(model_name, request_data)
+    def get_preloaded_models(self) -> List[str]:
+        return list(self.preloaded_models)
     
     def get_active_requests(self, model_name: str) -> int:
         return self.rate_limiter.get_active_requests(model_name)
     
     def acquire_request(self, model_name: str) -> bool:
-        concurrency_limit = self.get_concurrency_limit()
-        if not self.can_accept_request(model_name):
-            return False
-        self.rate_limiter.increment_request(model_name)
-        self.model_last_used[model_name] = datetime.now()
-        return True
+        return self.rate_limiter.acquire_request(model_name, self.get_concurrency_limit())
     
     def release_request(self, model_name: str):
-        self.rate_limiter.decrement_request(model_name)
-        try:
-            loop = asyncio.get_running_loop()
-            asyncio.create_task(self._check_idle_timeout(model_name))
-        except RuntimeError:
-            pass
+        self.rate_limiter.release_request(model_name)
+        self.model_last_used[model_name] = datetime.now()
     
-    def get_preloaded_models(self) -> List[str]:
-        return list(self.preloaded_models)
-    
-    async def _check_idle_timeout(self, model_name: str):
-        idle_timeout = self.config.get("settings", {}).get("idle_timeout", 300)
-        model_config = self.get_model_config(model_name)
-        
-        if model_config and model_config.get("keep_alive", False):
-            return
-        
-        await asyncio.sleep(idle_timeout)
-        
-        last_used = self.model_last_used.get(model_name)
-        if last_used and datetime.now() - last_used >= timedelta(seconds=idle_timeout):
-            if self.get_active_requests(model_name) == 0:
-                await self.stop_model(model_name)
-                if model_name in self.preloaded_models:
-                    self.preloaded_models.remove(model_name)
-    
-    async def start_model(self, model_name: str, force: bool = False) -> bool:
-        model_config = self.get_model_config(model_name)
-        if not model_config:
+    def can_accept_request(self, model_name: str) -> bool:
+        if not self.is_model_available(model_name):
             return False
         
-        service_name = model_config.get("service")
-        required_memory = _parse_memory_size(model_config.get("required_memory", 0))
+        gpu_status = self.gpu_monitor.get_gpu_status()
+        if not gpu_status:
+            return False
         
-        if self.is_model_running(model_name):
-            return True
+        if gpu_status.get('available_memory', 0) < self.get_min_available_memory():
+            return False
         
-        if required_memory > 0:
-            mem_info = self.gpu_monitor.get_memory_usage()
-            if not mem_info or mem_info.get("available", 0) < required_memory:
-                if not force:
-                    return False
-        
-        success = self.sys_controller.start_service(service_name)
-        if success:
-            preload_timeout = self.config.get("settings", {}).get("preload_timeout", 120)
-            check_interval = 2
-            max_retries = preload_timeout // check_interval
-            
-            await asyncio.sleep(check_interval)
-            for _ in range(max_retries):
-                if self.is_model_running(model_name):
-                    self.model_last_used[model_name] = datetime.now()
-                    return True
-                await asyncio.sleep(check_interval)
-        
-        return False
+        return self.rate_limiter.can_accept_request(model_name, self.get_concurrency_limit())
     
-    async def stop_model(self, model_name: str) -> bool:
-        service_name = self.get_model_service(model_name)
+    async def _cleanup_memory_fragmentation(self) -> bool:
+        """尝试清理显存碎片"""
+        cleanup_delay = self.config.get('settings', {}).get('memory_cleanup_delay', 3)
+        await asyncio.sleep(cleanup_delay)
+        return True
+    
+    async def _send_warmup_request(self, model_name: str) -> bool:
+        """发送预热请求到 vLLM"""
+        port = self.get_model_port(model_name)
+        url = f"http://localhost:{port}/v1/chat/completions"
+        
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    url,
+                    json={
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "max_tokens": 1
+                    },
+                    timeout=30
+                )
+                return response.status_code == 200
+        except Exception:
+            return False
+    
+    async def _adjust_gpu_utilization(self, model_name: str, target_utilization: float = 0.9):
+        """调整 GPU 显存利用率"""
+        port = self.get_model_port(model_name)
+        url = f"http://localhost:{port}/v1/control"
+        
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    url,
+                    json={"gpu_memory_utilization": target_utilization},
+                    timeout=10
+                )
+        except Exception:
+            pass
+    
+    async def start_model(self, model_name: str) -> bool:
+        config = self.get_model_config(model_name)
+        if not config:
+            return False
+        
+        service_name = config.get('service')
         if not service_name:
             return False
         
-        success = self.sys_controller.stop_service(service_name)
-        if success and model_name in self.preloaded_models:
-            self.preloaded_models.remove(model_name)
-        return success
-    
-    async def switch_model(self, target_model: str) -> bool:
-        if not self.is_model_available(target_model):
-            return False
-        
-        if self.is_model_running(target_model):
+        if self.sys_controller.is_service_running(service_name):
+            self.running_models[model_name] = datetime.now()
             return True
         
-        mem_info = self.gpu_monitor.get_memory_usage()
-        if not mem_info:
+        gpu_status = self.gpu_monitor.get_gpu_status()
+        if gpu_status:
+            required_memory = config.get('required_memory', 0)
+            if gpu_status.get('available_memory', 0) < required_memory + self.get_min_available_memory():
+                await self._free_up_memory(model_name)
+        
+        success = await self.sys_controller.start_service(service_name)
+        if success:
+            self.running_models[model_name] = datetime.now()
+            
+            preload_timeout = self.config.get('settings', {}).get('preload_timeout', 120)
+            await asyncio.sleep(min(30, preload_timeout))
+            
+            await self._send_warmup_request(model_name)
+            
+            gpu_util = self.config.get('settings', {}).get('gpu_memory_utilization', 0.9)
+            await self._adjust_gpu_utilization(model_name, gpu_util)
+        
+        return success
+    
+    async def stop_model(self, model_name: str) -> bool:
+        config = self.get_model_config(model_name)
+        if not config:
             return False
         
-        target_config = self.get_model_config(target_model)
-        target_memory = _parse_memory_size(target_config.get("required_memory", 0))
+        service_name = config.get('service')
+        if not service_name:
+            return False
         
-        if mem_info.get("available", 0) >= target_memory:
-            return await self.start_model(target_model)
+        success = await self.sys_controller.stop_service(service_name)
+        if success:
+            await self._cleanup_memory_fragmentation()
+            if model_name in self.running_models:
+                del self.running_models[model_name]
         
-        running_models = [m for m in self.get_available_models() if self.is_model_running(m) and m != target_model]
+        return success
+    
+    async def _free_up_memory(self, target_model_name: str) -> bool:
+        """释放显存以启动目标模型"""
+        target_config = self.get_model_config(target_model_name)
+        if not target_config:
+            return False
         
-        for model in running_models:
-            model_config = self.get_model_config(model)
-            if not model_config.get("keep_alive", False):
-                if self.get_active_requests(model) == 0:
-                    await self.stop_model(model)
-                    mem_info = self.gpu_monitor.get_memory_usage()
-                    if mem_info and mem_info.get("available", 0) >= target_memory:
-                        return await self.start_model(target_model)
+        target_required = target_config.get('required_memory', 0)
+        gpu_status = self.gpu_monitor.get_gpu_status()
+        
+        if not gpu_status:
+            return False
+        
+        available_memory = gpu_status.get('available_memory', 0)
+        needed_memory = target_required + self.get_min_available_memory()
+        
+        if available_memory >= needed_memory:
+            return True
+        
+        models_to_stop = []
+        for model_name in list(self.running_models.keys()):
+            if model_name == target_model_name:
+                continue
+            
+            config = self.get_model_config(model_name)
+            if config and config.get('keep_alive', False):
+                continue
+            
+            models_to_stop.append((model_name, config.get('required_memory', 0)))
+        
+        models_to_stop.sort(key=lambda x: x[1], reverse=True)
+        
+        for model_name, _ in models_to_stop:
+            await self.stop_model(model_name)
+            
+            gpu_status = self.gpu_monitor.get_gpu_status()
+            if gpu_status and gpu_status.get('available_memory', 0) >= needed_memory:
+                return True
         
         return False
     
-    def get_concurrency_limit(self) -> int:
-        return self.config.get("settings", {}).get("concurrency_limit", 4)
+    async def switch_model(self, target_model_name: str) -> bool:
+        """智能切换到目标模型，自动处理显存管理"""
+        if not self.is_model_available(target_model_name):
+            return False
+        
+        if self.is_model_running(target_model_name):
+            return True
+        
+        success = await self._free_up_memory(target_model_name)
+        if not success:
+            return False
+        
+        return await self.start_model(target_model_name)
     
-    def get_min_available_memory(self) -> int:
-        return _parse_memory_size(self.config.get("settings", {}).get("min_available_memory", 2 * 1024 ** 3))
-    
-    def get_model_last_used(self, model_name: str) -> Optional[datetime]:
-        return self.model_last_used.get(model_name)
-    
-    async def wait_for_slot(self, model_name: str, timeout: int = 30) -> bool:
-        """等待可用槽位，支持优雅降级"""
-        concurrency_limit = self.get_concurrency_limit()
-        return await self.rate_limiter.wait_for_slot(model_name, concurrency_limit, timeout)
+    async def preload_models(self):
+        """预热所有配置为预加载的模型"""
+        for model_name in self.preloaded_models:
+            if not self.is_model_running(model_name):
+                await self.start_model(model_name)

@@ -28,4 +28,6 @@ settings:
   preload_timeout: 120
   idle_timeout: 300
   memory_flush_interval: 300
+  memory_cleanup_delay: 3
+  gpu_memory_utilization: 0.9
   default_memory_strategy: balanced

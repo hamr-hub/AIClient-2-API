@@ -7,6 +7,8 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 
 class RateLimiter:
+    PRIORITIES = {"low": 1, "normal": 2, "high": 3, "critical": 4}
+    
     def __init__(self):
         self.redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
         self.client = self._connect()
@@ -99,18 +101,24 @@ class RateLimiter:
         key = self._get_active_key(model_name)
         self.client.delete(key)
     
-    def enqueue_request(self, model_name: str, request_data: Dict[str, Any]) -> str:
+    def _get_priority_queue_key(self, model_name: str, priority: int) -> str:
+        return f"{self.queue_prefix}{model_name}:{priority}"
+    
+    def enqueue_request(self, model_name: str, request_data: Dict[str, Any], priority: str = "normal") -> str:
         if not self.client:
             return ""
         
+        priority_level = self.PRIORITIES.get(priority, 2)
         request_id = str(uuid.uuid4())
-        queue_key = self._get_queue_key(model_name)
+        queue_key = self._get_priority_queue_key(model_name, priority_level)
         request_key = self._get_request_key(request_id)
         
         request_info = {
             "id": request_id,
             "model_name": model_name,
             "data": request_data,
+            "priority": priority,
+            "priority_level": priority_level,
             "enqueued_at": datetime.now().isoformat(),
             "status": "queued"
         }
@@ -124,20 +132,19 @@ class RateLimiter:
         if not self.client:
             return None
         
-        queue_key = self._get_queue_key(model_name)
-        request_id = self.client.lpop(queue_key)
-        
-        if not request_id:
-            return None
-        
-        request_key = self._get_request_key(request_id.decode())
-        request_data = self.client.get(request_key)
-        
-        if request_data:
-            info = json.loads(request_data)
-            info["status"] = "processing"
-            self.client.set(request_key, json.dumps(info), ex=3600)
-            return info
+        for priority_level in sorted(self.PRIORITIES.values(), reverse=True):
+            queue_key = self._get_priority_queue_key(model_name, priority_level)
+            request_id = self.client.lpop(queue_key)
+            
+            if request_id:
+                request_key = self._get_request_key(request_id.decode())
+                request_data = self.client.get(request_key)
+                
+                if request_data:
+                    info = json.loads(request_data)
+                    info["status"] = "processing"
+                    self.client.set(request_key, json.dumps(info), ex=3600)
+                    return info
         
         return None
     
@@ -145,8 +152,12 @@ class RateLimiter:
         if not self.client:
             return 0
         
-        queue_key = self._get_queue_key(model_name)
-        return self.client.llen(queue_key)
+        total_length = 0
+        for priority_level in self.PRIORITIES.values():
+            queue_key = self._get_priority_queue_key(model_name, priority_level)
+            total_length += self.client.llen(queue_key)
+        
+        return total_length
     
     def get_queue_status(self, model_name: str) -> Dict[str, Any]:
         return {
