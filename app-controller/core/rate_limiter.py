@@ -60,6 +60,39 @@ class RateLimiter:
         active = self.get_active_requests(model_name)
         return active < max_concurrent
     
+    def is_queue_available(self, model_name: str) -> bool:
+        """检查队列是否还有空间"""
+        if not self.client:
+            return False
+        return self.get_queue_length(model_name) < self.max_queue_length
+    
+    async def wait_for_slot(self, model_name: str, max_concurrent: int, timeout: int = 30) -> bool:
+        """等待可用槽位，超时返回False"""
+        if not self.client:
+            return False
+        
+        end_time = datetime.now() + timedelta(seconds=timeout)
+        
+        while datetime.now() < end_time:
+            if self.is_available(model_name, max_concurrent):
+                return True
+            
+            if self.get_queue_length(model_name) >= self.max_queue_length:
+                return False
+            
+            await asyncio.sleep(self.queue_poll_interval)
+        
+        return False
+    
+    def get_wait_time_estimate(self, model_name: str, max_concurrent: int) -> float:
+        """估算等待时间（秒）"""
+        queue_length = self.get_queue_length(model_name)
+        if queue_length == 0:
+            return 0.0
+        
+        avg_processing_time = 10.0
+        return (queue_length / max_concurrent) * avg_processing_time
+    
     def reset_counter(self, model_name: str):
         if not self.client:
             return

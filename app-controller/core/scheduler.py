@@ -176,6 +176,22 @@ class Scheduler:
         concurrency_limit = self.get_concurrency_limit()
         return self.rate_limiter.is_available(model_name, concurrency_limit)
     
+    def is_queue_available(self, model_name: str) -> bool:
+        """检查队列是否可用"""
+        return self.rate_limiter.is_queue_available(model_name)
+    
+    def get_queue_length(self, model_name: str) -> int:
+        """获取队列长度"""
+        return self.rate_limiter.get_queue_length(model_name)
+    
+    def get_wait_time_estimate(self, model_name: str) -> float:
+        """估算等待时间"""
+        return self.rate_limiter.get_wait_time_estimate(model_name, self.get_concurrency_limit())
+    
+    def enqueue_request(self, model_name: str, request_data: Dict) -> str:
+        """将请求加入队列"""
+        return self.rate_limiter.enqueue_request(model_name, request_data)
+    
     def get_active_requests(self, model_name: str) -> int:
         return self.rate_limiter.get_active_requests(model_name)
     
@@ -294,3 +310,8 @@ class Scheduler:
     
     def get_model_last_used(self, model_name: str) -> Optional[datetime]:
         return self.model_last_used.get(model_name)
+    
+    async def wait_for_slot(self, model_name: str, timeout: int = 30) -> bool:
+        """等待可用槽位，支持优雅降级"""
+        concurrency_limit = self.get_concurrency_limit()
+        return await self.rate_limiter.wait_for_slot(model_name, concurrency_limit, timeout)

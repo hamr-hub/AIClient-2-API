@@ -116,7 +116,12 @@ describe('Claude Kiro Provider Tests', () => {
         });
 
         test('should detect trial expired', () => {
-            const result = detectFreeAccountRestriction('Your trial period has expired');
+            const result = detectFreeAccountRestriction('Your trial has expired');
+            expect(result).toBe('Trial period has expired');
+        });
+
+        test('should detect trial expired with period', () => {
+            const result = detectFreeAccountRestriction('Trial expired, please upgrade');
             expect(result).toBe('Trial period has expired');
         });
 
