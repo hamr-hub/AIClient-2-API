@@ -1,11 +1,18 @@
 import subprocess
 import json
 import re
-from typing import Dict, Optional
+import asyncio
+import httpx
+from datetime import datetime, timedelta
+from typing import Dict, Optional, List
 
 class GPUMonitor:
     def __init__(self):
         self._nvidia_smi_available = self._check_nvidia_smi()
+        self._last_flush_time = datetime.now()
+        self._flush_interval = 300  # 5分钟
+        self._memory_strategy = "balanced"  # conservative, balanced, aggressive
+        self._fragmentation_history: List[float] = []
     
     def _check_nvidia_smi(self) -> bool:
         try:

@@ -179,8 +179,24 @@ async def chat_completions(request: ChatCompletionRequest):
         if not scheduler.acquire_request(model_name):
             active = scheduler.get_active_requests(model_name)
             limit = scheduler.get_concurrency_limit()
-            logger.warning(f"Too many requests for {model_name}: {active}/{limit}")
-            raise TooManyRequestsException(active, limit)
+            queue_length = scheduler.get_queue_length(model_name)
+            
+            if scheduler.is_queue_available(model_name):
+                wait_time = scheduler.get_wait_time_estimate(model_name)
+                logger.info(f"Request queued for {model_name}, position: {queue_length + 1}, estimated wait: {wait_time:.1f}s")
+                
+                success = await scheduler.wait_for_slot(model_name, timeout=30)
+                if not success:
+                    logger.warning(f"Queue timeout for {model_name}")
+                    raise TooManyRequestsException(active, limit, queue_length)
+                
+                acquired = scheduler.acquire_request(model_name)
+                if not acquired:
+                    logger.warning(f"Failed to acquire request after waiting for {model_name}")
+                    raise TooManyRequestsException(active, limit, queue_length)
+            else:
+                logger.warning(f"Queue full for {model_name}: {active}/{limit}, queue: {queue_length}")
+                raise TooManyRequestsException(active, limit, queue_length)
         
         gpu_status = gpu_monitor.get_gpu_status()
         min_memory = scheduler.get_min_available_memory()

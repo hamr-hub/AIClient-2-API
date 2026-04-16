@@ -25,12 +25,14 @@ class InsufficientMemoryException(ControllerException):
         )
 
 class TooManyRequestsException(ControllerException):
-    def __init__(self, active: int, limit: int):
-        super().__init__(
-            f"Too Many Requests: {active}/{limit} concurrent requests",
-            code=429,
-            details={"active": active, "limit": limit}
-        )
+    def __init__(self, active: int, limit: int, queue_length: int = 0):
+        if queue_length > 0:
+            message = f"Too Many Requests: {active}/{limit} concurrent requests, {queue_length} in queue"
+            details = {"active": active, "limit": limit, "queue_length": queue_length}
+        else:
+            message = f"Too Many Requests: {active}/{limit} concurrent requests"
+            details = {"active": active, "limit": limit}
+        super().__init__(message, code=429, details=details)
 
 class ModelServiceUnavailableException(ControllerException):
     def __init__(self, model_name: str, reason: str = ""):
