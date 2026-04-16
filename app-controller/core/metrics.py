@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from collections import defaultdict
 from core.logger import setup_logger
+from core.redis_client import redis_client
 
 logger = setup_logger()
 
@@ -14,6 +15,68 @@ class MetricsCollector:
         self.start_time = datetime.now()
         self.gpu_status_history: List[Dict] = []
         self.queue_length_history: List[int] = []
+        self.redis_prefix = "ai_controller:metrics:"
+        self._load_from_redis()
+    
+    def _get_key(self, name: str) -> str:
+        return f"{self.redis_prefix}{name}"
+    
+    def _load_from_redis(self):
+        if not redis_client.is_connected():
+            return
+        
+        try:
+            request_counts_key = self._get_key("request_counts")
+            data = redis_client.get_json(request_counts_key)
+            if data:
+                self.request_counts = defaultdict(int, data)
+            
+            error_counts_key = self._get_key("error_counts")
+            data = redis_client.get_json(error_counts_key)
+            if data:
+                self.error_counts = defaultdict(int, data)
+            
+            model_requests_key = self._get_key("model_requests")
+            data = redis_client.get_json(model_requests_key)
+            if data:
+                self.model_requests = defaultdict(int, data)
+            
+            response_times_key = self._get_key("response_times")
+            data = redis_client.get_json(response_times_key)
+            if data:
+                self.response_times = data
+            
+            start_time_key = self._get_key("start_time")
+            data = redis_client.get(start_time_key)
+            if data:
+                try:
+                    self.start_time = datetime.fromisoformat(data)
+                except:
+                    pass
+        except Exception as e:
+            logger.error(f"Failed to load metrics from Redis: {e}")
+    
+    def _save_to_redis(self):
+        if not redis_client.is_connected():
+            return
+        
+        try:
+            request_counts_key = self._get_key("request_counts")
+            redis_client.set_json(request_counts_key, dict(self.request_counts))
+            
+            error_counts_key = self._get_key("error_counts")
+            redis_client.set_json(error_counts_key, dict(self.error_counts))
+            
+            model_requests_key = self._get_key("model_requests")
+            redis_client.set_json(model_requests_key, dict(self.model_requests))
+            
+            response_times_key = self._get_key("response_times")
+            redis_client.set_json(response_times_key, self.response_times)
+            
+            start_time_key = self._get_key("start_time")
+            redis_client.set(start_time_key, self.start_time.isoformat())
+        except Exception as e:
+            logger.error(f"Failed to save metrics to Redis: {e}")
     
     def record_request(self, endpoint: str, status_code: int, response_time: float, model_name: Optional[str] = None):
         self.request_counts[endpoint] += 1
@@ -27,6 +90,8 @@ class MetricsCollector:
         
         if model_name:
             self.model_requests[model_name] += 1
+        
+        self._save_to_redis()
     
     def record_gpu_status(self, gpu_status: Dict):
         self.gpu_status_history.append({
@@ -35,11 +100,17 @@ class MetricsCollector:
         })
         if len(self.gpu_status_history) > 60:
             self.gpu_status_history = self.gpu_status_history[-60:]
+        
+        gpu_history_key = self._get_key("gpu_history")
+        redis_client.set_json(gpu_history_key, self.gpu_status_history)
     
     def record_queue_length(self, length: int):
         self.queue_length_history.append(length)
         if len(self.queue_length_history) > 60:
             self.queue_length_history = self.queue_length_history[-60:]
+        
+        queue_history_key = self._get_key("queue_history")
+        redis_client.set_json(queue_history_key, self.queue_length_history)
     
     def get_metrics(self) -> Dict:
         avg_response_time = sum(self.response_times) / len(self.response_times) if self.response_times else 0
@@ -85,6 +156,15 @@ class MetricsCollector:
         self.start_time = datetime.now()
         self.gpu_status_history.clear()
         self.queue_length_history.clear()
+        
+        if redis_client.is_connected():
+            try:
+                pattern = f"{self.redis_prefix}*"
+                keys = redis_client.keys(pattern)
+                for key in keys:
+                    redis_client.delete(key)
+            except Exception as e:
+                logger.error(f"Failed to reset metrics in Redis: {e}")
     
     def get_health_score(self) -> float:
         total = sum(self.request_counts.values())
@@ -98,7 +178,6 @@ class MetricsCollector:
         return round(score, 2)
     
     def get_comprehensive_health_score(self, gpu_status: Optional[Dict] = None) -> Dict:
-        """综合健康评分，包含 GPU 状态"""
         scores = {}
         
         total = sum(self.request_counts.values())
@@ -157,12 +236,10 @@ class MetricsCollector:
             return "critical"
     
     def should_alert(self, threshold: float = 70) -> bool:
-        """判断是否需要告警"""
         score = self.get_health_score()
         return score < threshold
     
     def get_alert_reasons(self) -> List[str]:
-        """获取告警原因"""
         reasons = []
         
         total = sum(self.request_counts.values())

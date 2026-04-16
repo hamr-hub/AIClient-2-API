@@ -1,6 +1,7 @@
 import httpx
 import json
 import asyncio
+import os
 from typing import Dict, Any, Optional
 
 class VLLMProxy:
@@ -23,7 +24,13 @@ class VLLMProxy:
                 if chunk.startswith("data: "):
                     chunk_data = chunk[6:]
                     if chunk_data == "[DONE]":
-                        yield {"type": "done"}
+                        yield {
+                            "id": f"chatcmpl-{os.urandom(12).hex()}",
+                            "object": "chat.completion.chunk",
+                            "created": int(asyncio.get_event_loop().time()),
+                            "model": payload.get("model", ""),
+                            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+                        }
                         break
                     try:
                         yield json.loads(chunk_data)

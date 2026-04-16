@@ -63,36 +63,38 @@ class TestScheduler:
         models = scheduler.get_available_models()
         assert isinstance(models, list)
         assert len(models) > 0
-        assert "gemma-2-9b" in models
+        assert "gemma-4-31b" in models
         assert "llama-3-8b" in models
 
     def test_is_model_available(self, scheduler):
-        assert scheduler.is_model_available("gemma-2-9b") is True
+        assert scheduler.is_model_available("gemma-4-31b") is True
         assert scheduler.is_model_available("llama-3-8b") is True
         assert scheduler.is_model_available("unknown-model") is False
 
     def test_get_model_config(self, scheduler):
-        config = scheduler.get_model_config("gemma-2-9b")
+        config = scheduler.get_model_config("gemma-4-31b")
         assert config is not None
         assert config.get("service") == "vllm-gemma"
         assert config.get("port") == 8000
 
     def test_get_model_service(self, scheduler):
-        assert scheduler.get_model_service("gemma-2-9b") == "vllm-gemma"
+        assert scheduler.get_model_service("gemma-4-31b") == "vllm-gemma"
         assert scheduler.get_model_service("llama-3-8b") == "vllm-llama"
         assert scheduler.get_model_service("unknown") is None
 
     def test_get_model_port(self, scheduler):
-        assert scheduler.get_model_port("gemma-2-9b") == 8000
+        assert scheduler.get_model_port("gemma-4-31b") == 8000
         assert scheduler.get_model_port("llama-3-8b") == 8001
         assert scheduler.get_model_port("unknown") is None
 
     def test_is_model_running(self, scheduler, mock_sys_controller):
-        mock_sys_controller.is_service_running.return_value = True
-        assert scheduler.is_model_running("gemma-2-9b") is True
+        mock_sys_controller.get_process_info.return_value = {"pid": 1234}
+        scheduler.running_models.clear()
+        assert scheduler.is_model_running("gemma-4-31b") is True
         
-        mock_sys_controller.is_service_running.return_value = False
-        assert scheduler.is_model_running("gemma-2-9b") is False
+        mock_sys_controller.get_process_info.return_value = None
+        scheduler.running_models.clear()
+        assert scheduler.is_model_running("gemma-4-31b") is False
 
     @pytest.mark.asyncio
     async def test_start_model_success(self, scheduler, mock_sys_controller, mock_gpu_monitor):
@@ -103,7 +105,7 @@ class TestScheduler:
             "available": 19 * 1024 ** 3
         }
         
-        result = await scheduler.start_model("gemma-2-9b")
+        result = await scheduler.start_model("gemma-4-31b")
         assert result is True
         mock_sys_controller.start_service.assert_called_once_with("vllm-gemma")
 
@@ -115,14 +117,14 @@ class TestScheduler:
             "available": 1 * 1024 ** 3
         }
         
-        result = await scheduler.start_model("gemma-2-9b")
+        result = await scheduler.start_model("gemma-4-31b")
         assert result is False
 
     @pytest.mark.asyncio
     async def test_stop_model(self, scheduler, mock_sys_controller):
         mock_sys_controller.stop_service.return_value = True
         
-        result = await scheduler.stop_model("gemma-2-9b")
+        result = await scheduler.stop_model("gemma-4-31b")
         assert result is True
         mock_sys_controller.stop_service.assert_called_once_with("vllm-gemma")
 
@@ -146,4 +148,4 @@ class TestScheduler:
         assert count >= 0
 
     def test_can_accept_request(self, scheduler):
-        assert scheduler.can_accept_request("gemma-2-9b") is True
+        assert scheduler.can_accept_request("gemma-4-31b") is True

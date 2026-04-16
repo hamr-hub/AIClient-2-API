@@ -5,6 +5,10 @@
     margin-bottom: 1rem;
 }
 
+.gpu-charts-panel {
+    grid-column: 1 / -1;
+}
+
 .gpu-monitor-container > div {
     background: var(--card-bg);
     border-radius: var(--border-radius);
@@ -304,6 +308,80 @@
     opacity: 0.7;
 }
 
+.chart-tabs {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.chart-tab {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chart-tab:hover {
+    background: var(--border-color);
+}
+
+.chart-tab.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.gpu-chart-content {
+    position: relative;
+    height: 250px;
+    background: var(--surface-bg);
+    border-radius: 0.375rem;
+    padding: 1rem;
+}
+
+#gpuChart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.legend-color {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 2px;
+}
+
+.legend-color.utilization {
+    background: var(--primary-color);
+}
+
+.legend-color.temperature {
+    background: var(--danger-color);
+}
+
+.legend-color.memory {
+    background: var(--warning-color);
+}
+
 @media (max-width: 768px) {
     .gpu-monitor-container {
         grid-template-columns: 1fr;
@@ -319,5 +397,14 @@
     
     .iframe-container {
         height: 300px;
+    }
+    
+    .chart-legend {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .gpu-chart-content {
+        height: 200px;
     }
 }

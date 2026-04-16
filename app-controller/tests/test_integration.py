@@ -9,6 +9,8 @@ def client():
         mock_gpu_status.return_value = {
             "status": "available",
             "gpu_count": 1,
+            "total_memory": 24 * 1024 ** 3,
+            "used_memory": 5 * 1024 ** 3,
             "available_memory": 19 * 1024 ** 3,
             "primary": {
                 "total_memory": 24 * 1024 ** 3,
@@ -56,7 +58,7 @@ class TestIntegration:
             response = client.post(
                 "/v1/chat/completions",
                 json={
-                    "model": "gemma-2-9b",
+                    "model": "gemma-4-31b",
                     "messages": [{"role": "user", "content": "Hello"}]
                 }
             )
@@ -76,13 +78,13 @@ class TestIntegration:
         assert isinstance(data, dict)
 
     def test_start_model(self, client):
-        with patch('core.sys_ctl.SystemController.is_service_running') as mock_is_running:
-            mock_is_running.side_effect = [False, True]
+        with patch('core.sys_ctl.SystemController.get_process_info') as mock_process_info:
+            mock_process_info.return_value = None
             
             with patch('core.sys_ctl.SystemController.start_service') as mock_start:
                 mock_start.return_value = True
                 
-                response = client.post("/manage/models/gemma-2-9b/start")
+                response = client.post("/manage/models/gemma-4-31b/start")
                 
                 assert response.status_code == 200
                 data = response.json()
@@ -95,7 +97,7 @@ class TestIntegration:
             with patch('core.sys_ctl.SystemController.stop_service') as mock_stop:
                 mock_stop.return_value = True
                 
-                response = client.post("/manage/models/gemma-2-9b/stop")
+                response = client.post("/manage/models/gemma-4-31b/stop")
                 
                 assert response.status_code == 200
                 data = response.json()
@@ -118,7 +120,7 @@ class TestIntegration:
         with patch('core.scheduler.Scheduler.switch_model') as mock_switch:
             mock_switch.return_value = True
             
-            response = client.post("/manage/models/gemma-2-9b/switch")
+            response = client.post("/manage/models/gemma-4-31b/switch")
             
             assert response.status_code == 200
             data = response.json()
@@ -128,7 +130,7 @@ class TestIntegration:
         with patch('core.scheduler.Scheduler.start_model') as mock_start:
             mock_start.return_value = True
             
-            response = client.post("/manage/preload/gemma-2-9b")
+            response = client.post("/manage/preload/gemma-4-31b")
             
             assert response.status_code == 200
             data = response.json()

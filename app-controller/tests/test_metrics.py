@@ -5,7 +5,9 @@ from datetime import datetime
 class TestMetricsCollector:
     @pytest.fixture
     def metrics(self):
-        return MetricsCollector()
+        m = MetricsCollector()
+        m.reset()
+        return m
 
     def test_initial_state(self, metrics):
         assert metrics.start_time is not None

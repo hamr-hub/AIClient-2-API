@@ -19,6 +19,7 @@ from core.config_watcher import ConfigWatcher
 from core.metrics import MetricsCollector
 from core.prometheus_exporter import PrometheusExporter
 from core.structured_logger import StructuredLogger, RequestContext
+from core.redis_client import redis_client
 from middleware.error_handler import (
     http_exception_handler,
     generic_exception_handler,
@@ -105,20 +106,34 @@ app.add_exception_handler(ControllerException, controller_exception_handler)
 async def broadcast_status_loop():
     while True:
         try:
-            gpu_status = gpu_monitor.get_gpu_status()
-            if not gpu_status:
-                gpu_status = {"status": "unavailable"}
-            
+            gpu_summary = gpu_monitor.get_gpu_summary()
             model_status = await get_model_status()
-            await ws_manager.broadcast_status(gpu_status, model_status)
+            await ws_manager.broadcast_status(gpu_summary, model_status)
         except Exception as e:
             logger.error(f"Error broadcasting status: {str(e)}")
         
         await asyncio.sleep(2)
 
+async def save_history_loop():
+    while True:
+        try:
+            gpu_monitor.save_gpu_history()
+        except Exception as e:
+            logger.error(f"Error saving GPU history: {str(e)}")
+        
+        await asyncio.sleep(2)
+
 @app.on_event("startup")
 async def startup_event():
+    redis_client.connect()
+    if redis_client.is_connected():
+        logger.info("Redis connection established successfully")
+        gpu_monitor.set_redis_client(redis_client)
+    else:
+        logger.warning("Failed to connect to Redis")
+    
     asyncio.create_task(broadcast_status_loop())
+    asyncio.create_task(save_history_loop())
     structured_logger.info("AI Controller service started", action="startup")
 
 @app.on_event("shutdown")
@@ -289,6 +304,18 @@ async def get_gpu_status():
     if not status:
         return {"status": "unavailable", "message": "No GPU detected"}
     return status
+
+@app.get("/manage/gpu/history")
+async def get_gpu_history(count: int = 60):
+    logger.info(f"Getting GPU history, count: {count}")
+    history = gpu_monitor.get_gpu_history(count)
+    return {"history": history}
+
+@app.get("/manage/gpu/summary")
+async def get_gpu_summary():
+    logger.info("Getting GPU summary")
+    summary = gpu_monitor.get_gpu_summary()
+    return summary
 
 @app.get("/manage/models")
 async def get_model_status():
@@ -508,6 +535,86 @@ async def test_structured_logging():
     structured_logger.log_request("/test", "GET", 200, 0.123)
     structured_logger.log_model_event("test-model", "started", duration=10.5)
     return {"status": "logging_test_completed"}
+
+@app.get("/manage/redis/health")
+async def redis_health_check():
+    try:
+        connected = redis_client.is_connected()
+        info = {}
+        
+        if connected:
+            client = redis_client.get_client()
+            if client:
+                info = client.info()
+        
+        return {
+            "status": "healthy" if connected else "unhealthy",
+            "connected": connected,
+            "info": info,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "connected": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/manage/redis/keys")
+async def get_redis_keys(pattern: str = "*"):
+    try:
+        if not redis_client.is_connected():
+            return {"error": "Redis not connected"}
+        
+        keys = redis_client.keys(pattern)
+        return {"keys": keys, "count": len(keys)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.delete("/manage/redis/flush")
+async def flush_redis():
+    try:
+        if not redis_client.is_connected():
+            return {"error": "Redis not connected"}
+        
+        success = redis_client.flush_db()
+        return {"status": "success" if success else "failed"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/manage/gpu/history")
+async def get_gpu_history(count: int = 60):
+    try:
+        history = gpu_monitor.get_gpu_history(count)
+        return {
+            "history": history,
+            "count": len(history),
+            "enabled": gpu_monitor.get_history_enabled(),
+            "max_days": gpu_monitor.get_max_history_days()
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/manage/gpu/history/config")
+async def configure_gpu_history(enabled: Optional[bool] = None, max_days: Optional[int] = None):
+    try:
+        if enabled is not None:
+            gpu_monitor.set_history_enabled(enabled)
+        
+        if max_days is not None and max_days > 0:
+            gpu_monitor.set_max_history_days(max_days)
+        
+        return {
+            "enabled": gpu_monitor.get_history_enabled(),
+            "max_days": gpu_monitor.get_max_history_days()
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/manage/websocket/connections")
+async def get_websocket_connections():
+    return ws_manager.get_connection_stats()
 
 if __name__ == "__main__":
     import uvicorn
