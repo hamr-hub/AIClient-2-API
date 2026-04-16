@@ -2,6 +2,7 @@ import redis
 import os
 import json
 import uuid
+import asyncio
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 
@@ -12,6 +13,8 @@ class RateLimiter:
         self.prefix = "ai_controller:"
         self.queue_prefix = f"{self.prefix}queue:"
         self.request_prefix = f"{self.prefix}request:"
+        self.max_queue_length = 100
+        self.queue_poll_interval = 0.5
     
     def _connect(self) -> redis.Redis:
         try:

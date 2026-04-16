@@ -22,20 +22,28 @@ export async function handleStreamRequest(res, service, model, requestBody, from
         clientDisconnected = { value: false };
     }
 
+    let cleanupDone = false;
+    const cleanup = () => {
+        if (cleanupDone) return;
+        cleanupDone = true;
+        res.off('close', onClientClose);
+        res.off('error', onClientError);
+    };
+
     const onClientClose = () => {
         clientDisconnected.value = true;
         logger.info('[Stream] Client disconnected, stopping stream processing');
+        cleanup();
     };
     
     const onClientError = (err) => {
         clientDisconnected.value = true;
         logger.error('[Stream] Response stream error:', err.message);
+        cleanup();
     };
     
-    if (!isRetry) {
-        res.on('close', onClientClose);
-        res.on('error', onClientError);
-    }
+    res.on('close', onClientClose);
+    res.on('error', onClientError);
 
     if (!isRetry) {
         await handleUnifiedResponse(res, '', true);
@@ -258,10 +266,7 @@ export async function handleStreamRequest(res, service, model, requestBody, from
             providerPoolManager.releaseSlot(toProvider, pooluuid);
         }
 
-        if (!isRetry) {
-            res.off('close', onClientClose);
-            res.off('error', onClientError);
-        }
+        cleanup();
         
         if (!responseClosed && !clientDisconnected.value && !isRetry) {
             const clientProtocol = getProtocolPrefix(fromProvider);

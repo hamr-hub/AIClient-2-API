@@ -334,21 +334,34 @@ class Logger {
                 return;
             }
 
-            const files = (await fsPromises.readdir(this.config.logDir))
-                .filter(file => file.startsWith('app-') && file.endsWith('.log'))
-                .map(file => ({
-                    name: file,
-                    path: path.join(this.config.logDir, file),
-                    time: fs.statSync(path.join(this.config.logDir, file)).mtime.getTime()
-                }))
-                .sort((a, b) => b.time - a.time);
+            const fileNames = await fsPromises.readdir(this.config.logDir);
+            const files = [];
+
+            for (const fileName of fileNames) {
+                if (fileName.startsWith('app-') && fileName.endsWith('.log')) {
+                    const filePath = path.join(this.config.logDir, fileName);
+                    try {
+                        const stats = await fsPromises.stat(filePath);
+                        files.push({
+                            name: fileName,
+                            path: filePath,
+                            time: stats.mtime.getTime()
+                        });
+                    } catch {
+                        continue;
+                    }
+                }
+            }
+
+            files.sort((a, b) => b.time - a.time);
 
             if (files.length > this.config.maxFiles) {
-                for (let i = this.config.maxFiles; i < files.length; i++) {
+                const filesToDelete = files.slice(this.config.maxFiles);
+                for (const file of filesToDelete) {
                     try {
-                        await fsPromises.unlink(files[i].path);
+                        await fsPromises.unlink(file.path);
                     } catch (err) {
-                        console.error('[Logger] Failed to delete old log file:', files[i].name, err.message);
+                        console.error('[Logger] Failed to delete old log file:', file.name, err.message);
                     }
                 }
             }

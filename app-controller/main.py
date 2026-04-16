@@ -68,11 +68,12 @@ config_watcher.start_watching()
 async def request_tracking_middleware(request: Request, call_next):
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
-    request.state.start_time = datetime.now()
+    start_time = datetime.now()
     
     response = await call_next(request)
     
-    duration = (datetime.now() - request.state.start_time).total_seconds()
+    duration = (datetime.now() - start_time).total_seconds()
+    
     structured_logger.log_request(
         endpoint=str(request.url.path),
         method=request.method,
@@ -86,6 +87,12 @@ async def request_tracking_middleware(request: Request, call_next):
         method=request.method,
         status_code=response.status_code,
         duration=duration
+    )
+    
+    metrics.record_request(
+        endpoint=str(request.url.path),
+        status_code=response.status_code,
+        response_time=duration
     )
     
     return response
@@ -148,34 +155,6 @@ class ChatCompletionChunk(BaseModel):
     created: int = Field(default_factory=lambda: int(asyncio.get_event_loop().time()))
     model: str
     choices: List[Dict[str, Any]]
-
-async def broadcast_status_loop():
-    while True:
-        try:
-            gpu_status = gpu_monitor.get_gpu_status()
-            if not gpu_status:
-                gpu_status = {"status": "unavailable"}
-            
-            model_status = await get_model_status()
-            await ws_manager.broadcast_status(gpu_status, model_status)
-        except Exception as e:
-            logger.error(f"Error broadcasting status: {str(e)}")
-        
-        await asyncio.sleep(2)
-
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    start_time = datetime.now()
-    response = await call_next(request)
-    response_time = (datetime.now() - start_time).total_seconds()
-    
-    metrics.record_request(
-        endpoint=str(request.url.path),
-        status_code=response.status_code,
-        response_time=response_time
-    )
-    
-    return response
 
 @app.get("/v1/models")
 async def list_models():
@@ -259,11 +238,10 @@ async def chat_completions(request: ChatCompletionRequest):
         raise ModelServiceUnavailableException(model_name, str(e))
     finally:
         scheduler.release_request(model_name)
-        response_time = (datetime.now() - start_time).total_seconds()
         metrics.record_request(
             endpoint="/v1/chat/completions",
             status_code=status_code,
-            response_time=response_time,
+            response_time=(datetime.now() - start_time).total_seconds(),
             model_name=model_name
         )
 

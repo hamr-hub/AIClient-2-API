@@ -127,7 +127,7 @@ function validateConfig(config) {
         const value = config[key];
         
         if (rule.required && value === undefined) {
-            errors.push(`Missing required configuration: ${key}`);
+            errors.push(`[CONFIG ERROR] Missing required configuration: ${key}`);
             continue;
         }
 
@@ -138,29 +138,41 @@ function validateConfig(config) {
         switch (rule.type) {
             case 'int':
                 if (!Number.isInteger(value)) {
-                    errors.push(`${key} must be an integer. Got: ${typeof value}`);
+                    errors.push(`[CONFIG ERROR] ${key} must be an integer. Got: ${typeof value} (value: ${value})`);
                 } else if (rule.min !== undefined && value < rule.min) {
-                    errors.push(`${key} must be >= ${rule.min}. Got: ${value}`);
+                    errors.push(`[CONFIG ERROR] ${key} must be >= ${rule.min}. Got: ${value}`);
                 } else if (rule.max !== undefined && value > rule.max) {
-                    errors.push(`${key} must be <= ${rule.max}. Got: ${value}`);
+                    errors.push(`[CONFIG ERROR] ${key} must be <= ${rule.max}. Got: ${value}`);
                 }
                 break;
 
             case 'enum':
                 if (!rule.values.includes(value)) {
-                    errors.push(`${key} must be one of [${rule.values.join(', ')}]. Got: ${value}`);
+                    errors.push(`[CONFIG ERROR] ${key} must be one of [${rule.values.join(', ')}]. Got: ${value}`);
                 }
                 break;
 
             case 'bool':
                 if (typeof value !== 'boolean') {
-                    errors.push(`${key} must be a boolean. Got: ${typeof value}`);
+                    errors.push(`[CONFIG ERROR] ${key} must be a boolean. Got: ${typeof value} (value: ${value})`);
+                }
+                break;
+
+            case 'string':
+                if (typeof value !== 'string') {
+                    errors.push(`[CONFIG ERROR] ${key} must be a string. Got: ${typeof value}`);
+                } else if (rule.minLength !== undefined && value.length < rule.minLength) {
+                    errors.push(`[CONFIG ERROR] ${key} must be at least ${rule.minLength} characters. Got: ${value.length}`);
+                } else if (rule.maxLength !== undefined && value.length > rule.maxLength) {
+                    errors.push(`[CONFIG ERROR] ${key} must be at most ${rule.maxLength} characters. Got: ${value.length}`);
+                } else if (rule.pattern && !rule.pattern.test(value)) {
+                    errors.push(`[CONFIG ERROR] ${key} format is invalid.`);
                 }
                 break;
 
             case 'object':
-                if (typeof value !== 'object') {
-                    errors.push(`${key} must be an object. Got: ${typeof value}`);
+                if (typeof value !== 'object' || Array.isArray(value)) {
+                    errors.push(`[CONFIG ERROR] ${key} must be an object. Got: ${typeof value}`);
                 } else if (rule.properties) {
                     for (const [propKey, propRule] of Object.entries(rule.properties)) {
                         const propValue = value[propKey];
@@ -168,15 +180,19 @@ function validateConfig(config) {
                         
                         if (propRule.type === 'int') {
                             if (!Number.isInteger(propValue)) {
-                                errors.push(`${key}.${propKey} must be an integer. Got: ${typeof propValue}`);
+                                errors.push(`[CONFIG ERROR] ${key}.${propKey} must be an integer. Got: ${typeof propValue} (value: ${propValue})`);
                             } else if (propRule.min !== undefined && propValue < propRule.min) {
-                                errors.push(propRule.errorMsg || `${key}.${propKey} must be >= ${propRule.min}. Got: ${propValue}`);
+                                errors.push(propRule.errorMsg || `[CONFIG ERROR] ${key}.${propKey} must be >= ${propRule.min}. Got: ${propValue}`);
                             } else if (propRule.max !== undefined && propValue > propRule.max) {
-                                errors.push(propRule.errorMsg || `${key}.${propKey} must be <= ${propRule.max}. Got: ${propValue}`);
+                                errors.push(propRule.errorMsg || `[CONFIG ERROR] ${key}.${propKey} must be <= ${propRule.max}. Got: ${propValue}`);
                             }
                         } else if (propRule.type === 'bool') {
                             if (typeof propValue !== 'boolean') {
-                                errors.push(`${key}.${propKey} must be a boolean. Got: ${typeof propValue}`);
+                                errors.push(`[CONFIG ERROR] ${key}.${propKey} must be a boolean. Got: ${typeof propValue} (value: ${propValue})`);
+                            }
+                        } else if (propRule.type === 'enum') {
+                            if (!propRule.values.includes(propValue)) {
+                                errors.push(`[CONFIG ERROR] ${key}.${propKey} must be one of [${propRule.values.join(', ')}]. Got: ${propValue}`);
                             }
                         }
                     }
@@ -186,14 +202,27 @@ function validateConfig(config) {
     }
 
     if (config.REQUIRED_API_KEY === '123456') {
-        warnings.push('Using default API key (123456). For security, please change this in production.');
+        warnings.push('[CONFIG WARNING] Using default API key (123456). For security, please change this in production.');
     }
 
     if (config.LOG_LEVEL === 'debug' && process.env.NODE_ENV === 'production') {
-        warnings.push('Debug log level is not recommended in production environment.');
+        warnings.push('[CONFIG WARNING] Debug log level is not recommended in production environment.');
+    }
+
+    if (config.PROXY_URL && !isValidUrl(config.PROXY_URL)) {
+        warnings.push(`[CONFIG WARNING] PROXY_URL format may be invalid: ${config.PROXY_URL}`);
     }
 
     return { errors, warnings };
+}
+
+function isValidUrl(string) {
+    try {
+        const url = new URL(string);
+        return ['http:', 'https:', 'socks:', 'socks5:'].includes(url.protocol);
+    } catch {
+        return false;
+    }
 }
 
 function applyConfigValidation(config) {
