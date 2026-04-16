@@ -31,3 +31,17 @@ settings:
   memory_cleanup_delay: 3
   gpu_memory_utilization: 0.9
   default_memory_strategy: balanced
+  
+  queue:
+    max_length: 100
+    poll_interval: 0.5
+    wait_timeout: 30
+  
+  priority:
+    default: normal
+    enabled: true
+  
+  recovery:
+    max_restart_attempts: 3
+    restart_cooldown: 60
+    watchdog_check_interval: 5

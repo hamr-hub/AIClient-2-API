@@ -149,6 +149,22 @@ class Scheduler:
         
         return self.rate_limiter.can_accept_request(model_name, self.get_concurrency_limit())
     
+    def is_queue_available(self, model_name: str) -> bool:
+        """检查队列是否可用"""
+        return self.rate_limiter.is_queue_available(model_name)
+    
+    def get_queue_length(self, model_name: str) -> int:
+        """获取队列长度"""
+        return self.rate_limiter.get_queue_length(model_name)
+    
+    def enqueue_request(self, model_name: str, request_data: Dict, priority: str = "normal") -> str:
+        """将请求加入队列（支持优先级）"""
+        return self.rate_limiter.enqueue_request(model_name, request_data, priority)
+    
+    def get_supported_priorities(self) -> List[str]:
+        """获取支持的优先级列表"""
+        return list(self.rate_limiter.PRIORITIES.keys())
+    
     async def _cleanup_memory_fragmentation(self) -> bool:
         """尝试清理显存碎片"""
         cleanup_delay = self.config.get('settings', {}).get('memory_cleanup_delay', 3)

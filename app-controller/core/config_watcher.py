@@ -1,7 +1,7 @@
 import yaml
 import os
 import asyncio
-from typing import Dict, Callable
+from typing import Dict, Callable, List
 from datetime import datetime
 
 class ConfigWatcher:
