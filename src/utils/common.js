@@ -1,4 +1,5 @@
-export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
+import { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER } from './constants.js';
+export { MODEL_PROTOCOL_PREFIX, MODEL_PROVIDER };
 
 export { RETRYABLE_NETWORK_ERRORS, isRetryableNetworkError, getClientIp, getRequestBody } from './network-utils.js';
 

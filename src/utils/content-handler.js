@@ -3,7 +3,8 @@ import { getRequestBody } from './network-utils.js';
 import { convertData } from '../convert/convert.js';
 import { ProviderStrategyFactory } from './provider-strategies.js';
 import { getPluginManager } from '../core/plugin-manager.js';
-import { MODEL_PROVIDER, MODEL_PROTOCOL_PREFIX } from './constants.js';
+import { MODEL_PROVIDER } from './constants.js';
+import { MODEL_PROTOCOL_PREFIX } from './constants.js';
 import { handleStreamRequest, handleUnaryRequest, logConversation } from './request-handlers.js';
 import { getCustomModelConfig } from '../providers/provider-models.js';
 
