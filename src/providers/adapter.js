@@ -750,6 +750,20 @@ registerAdapter(MODEL_PROVIDER.LOCAL_MODEL, LocalApiServiceAdapter);
 // 用于存储服务适配器单例的映射
 export const serviceInstances = {};
 
+export function getServiceInstanceKey(provider, uuid = null) {
+    return uuid ? provider + uuid : provider;
+}
+
+export function invalidateServiceAdapter(provider, uuid = null) {
+    const providerKey = getServiceInstanceKey(provider, uuid);
+    if (serviceInstances[providerKey]) {
+        delete serviceInstances[providerKey];
+        logger.info(`[Adapter] Invalidated service adapter, provider: ${provider}, uuid: ${uuid || 'default'}`);
+        return true;
+    }
+    return false;
+}
+
 /**
  * 检查提供商是否已注册（支持前缀匹配）
  * @param {string} provider - 提供商名称
@@ -775,7 +789,7 @@ export function getServiceAdapter(config) {
     const customNameDisplay = config.customName ? ` (${config.customName})` : '';
     logger.info(`[Adapter] getServiceAdapter, provider: ${config.MODEL_PROVIDER}, uuid: ${config.uuid}${customNameDisplay}`);
     const provider = config.MODEL_PROVIDER;
-    const providerKey = config.uuid ? provider + config.uuid : provider;
+    const providerKey = getServiceInstanceKey(provider, config.uuid);
     
     if (!serviceInstances[providerKey]) {
         let AdapterClass = adapterRegistry.get(provider);
