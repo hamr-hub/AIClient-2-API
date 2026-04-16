@@ -135,16 +135,16 @@ class TestScheduler:
         assert scheduler.get_min_available_memory() == 2 * 1024 ** 3
 
     def test_acquire_request(self, scheduler):
-        result = scheduler.acquire_request("gemma-2-9b")
+        result = scheduler.acquire_request("gemma-4-31b")
         assert result is True
 
     def test_release_request(self, scheduler):
-        scheduler.acquire_request("gemma-2-9b")
-        scheduler.release_request("gemma-2-9b")
+        scheduler.acquire_request("gemma-4-31b")
+        scheduler.release_request("gemma-4-31b")
 
     def test_get_active_requests(self, scheduler):
-        scheduler.acquire_request("gemma-2-9b")
-        count = scheduler.get_active_requests("gemma-2-9b")
+        scheduler.acquire_request("gemma-4-31b")
+        count = scheduler.get_active_requests("gemma-4-31b")
         assert count >= 0
 
     def test_can_accept_request(self, scheduler):

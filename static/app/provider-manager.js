@@ -32,6 +32,11 @@ async function loadSystemInfo() {
         const memoryUsageEl = document.getElementById('memoryUsage');
         const cpuUsageEl = document.getElementById('cpuUsage');
         const uptimeEl = document.getElementById('uptime');
+        
+        // 统计卡片元素
+        const cpuValueEl = document.getElementById('cpuValue');
+        const memoryValueEl = document.getElementById('memoryValue');
+        const gpuValueEl = document.getElementById('gpuValue');
 
         if (appVersionEl) appVersionEl.textContent = data.appVersion ? `v${data.appVersion}` : '--';
         
@@ -43,6 +48,11 @@ async function loadSystemInfo() {
         if (nodeVersionEl) nodeVersionEl.textContent = data.nodeVersion || '--';
         if (memoryUsageEl) memoryUsageEl.textContent = data.memoryUsage || '--';
         if (cpuUsageEl) cpuUsageEl.textContent = data.cpuUsage || '--';
+        
+        // 更新统计卡片显示
+        if (cpuValueEl) cpuValueEl.textContent = data.cpuUsage || '--';
+        if (memoryValueEl) memoryValueEl.textContent = data.memoryUsage || '--';
+        if (gpuValueEl) gpuValueEl.textContent = data.gpuUsage || '--';
         
         // 保存初始时间用于本地计算
         if (data.serverTime && data.uptime !== undefined) {
@@ -154,12 +164,18 @@ function updateRestartButton(mode) {
  * 更新服务器时间和运行时间显示（本地计算）
  */
 function updateTimeDisplay() {
-    if (!initialServerTime || initialUptime === null || !initialLoadTime) {
+    const serverTimeEl = document.getElementById('serverTime');
+    const uptimeEl = document.getElementById('uptime');
+
+    if (!serverTimeEl && !uptimeEl) {
         return;
     }
 
-    const serverTimeEl = document.getElementById('serverTime');
-    const uptimeEl = document.getElementById('uptime');
+    // 如果没有初始数据，尝试重新加载系统信息
+    if (!initialServerTime || initialUptime === null || !initialLoadTime) {
+        loadSystemInfo();
+        return;
+    }
 
     // 计算经过的秒数
     const elapsedSeconds = Math.floor((Date.now() - initialLoadTime) / 1000);
@@ -170,7 +186,7 @@ function updateTimeDisplay() {
         serverTimeEl.textContent = currentServerTime.toLocaleString(getCurrentLanguage());
     }
 
-    // 更新运行时间
+    // 更新运行时间 - 使用服务端返回的初始运行时间加上页面加载后的经过时间
     if (uptimeEl) {
         const currentUptime = initialUptime + elapsedSeconds;
         uptimeEl.textContent = formatUptime(currentUptime);

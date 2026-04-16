@@ -63,6 +63,8 @@ const translations = {
         'dashboard.serverTime': '服务器时间',
         'dashboard.memoryUsage': '内存使用',
         'dashboard.cpuUsage': 'CPU 使用',
+        'dashboard.gpuUsage': 'GPU 使用',
+        'dashboard.gpuStatus': 'GPU状态',
         'dashboard.providerStatus': '提供商节点状态',
         'dashboard.advancedInfo': '高级信息 (路径路由与模型列表)',
         'dashboard.expandMore': '展开更多',

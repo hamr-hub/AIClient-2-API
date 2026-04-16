@@ -2,6 +2,33 @@ import { existsSync, readFileSync, createReadStream } from 'fs';
 import logger from '../utils/logger.js';
 import path from 'path';
 import { getCpuUsagePercent } from './system-monitor.js';
+import os from 'os';
+
+let systemMonitorHistory = {
+    cpu: [],
+    memory: [],
+    timestamp: []
+};
+const MAX_HISTORY_POINTS = 60;
+
+function collectSystemMetrics() {
+    const cpuUsage = parseFloat(getCpuUsagePercent());
+    const total = os.totalmem();
+    const free = os.freemem();
+    const memoryUsage = ((total - free) / total * 100);
+
+    systemMonitorHistory.cpu.push(cpuUsage);
+    systemMonitorHistory.memory.push(memoryUsage);
+    systemMonitorHistory.timestamp.push(Date.now());
+
+    if (systemMonitorHistory.cpu.length > MAX_HISTORY_POINTS) {
+        systemMonitorHistory.cpu.shift();
+        systemMonitorHistory.memory.shift();
+        systemMonitorHistory.timestamp.shift();
+    }
+}
+
+setInterval(collectSystemMetrics, 2000);
 
 /**
  * 获取系统信息
@@ -112,6 +139,42 @@ export async function handleClearTodayLog(req, res) {
         }));
         return true;
     }
+}
+
+/**
+ * 获取系统监控历史数据
+ */
+export async function handleGetSystemMonitor(req, res) {
+    const total = os.totalmem();
+    const free = os.freemem();
+    const used = total - free;
+    
+    const formatBytes = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+        cpu: {
+            usage: parseFloat(getCpuUsagePercent()),
+            cores: os.cpus().length,
+            history: systemMonitorHistory.cpu
+        },
+        memory: {
+            total: formatBytes(total),
+            used: formatBytes(used),
+            free: formatBytes(free),
+            usagePercent: ((used / total) * 100).toFixed(1),
+            history: systemMonitorHistory.memory
+        },
+        timestamp: systemMonitorHistory.timestamp,
+        platform: process.platform
+    }));
+    return true;
 }
 
 /**
