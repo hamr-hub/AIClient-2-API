@@ -1,39 +1,9 @@
 {
   "tokens": {
-    "c927d58456c5d87072b00158a89abd44b0c81ea3f425d631e699e1b07488be24": {
+    "07b5a355788561d1b04bd03dab1eaf0a7195d2f5c5b0eb576ac076b1e220895a": {
       "username": "admin",
-      "loginTime": 1776390409551,
-      "expiryTime": 1776394009550
-    },
-    "53ff5a5e4fee057b912295afdc9377150c6f84adb369d8ac403363ea4dc68799": {
-      "username": "admin",
-      "loginTime": 1776390453536,
-      "expiryTime": 1776394053536
-    },
-    "d8dbb3d9c4fa63256b3618e9d491be6243ca7a4b5ead6c324eacedc3b9295e28": {
-      "username": "admin",
-      "loginTime": 1776390817377,
-      "expiryTime": 1776394417377
-    },
-    "bfca2bb200179fe0ad45575e36593205b8e757c96377d0e459b2e1efe24a3172": {
-      "username": "admin",
-      "loginTime": 1776390840229,
-      "expiryTime": 1776394440229
-    },
-    "8d56959fbee74e5780c39536615dcdb61fb7ffc28ae891112e17d7bec94be496": {
-      "username": "admin",
-      "loginTime": 1776390862837,
-      "expiryTime": 1776394462837
-    },
-    "ef7b8d0601d5972bc023f1f0f02e072f4686b4ab36d12869a1e9cf4d68d8e84b": {
-      "username": "admin",
-      "loginTime": 1776390869604,
-      "expiryTime": 1776394469604
-    },
-    "7cf3306bc56c152ceea3033f66a7547a21e0400c68c372d02a6773dc7c4f518c": {
-      "username": "admin",
-      "loginTime": 1776391921086,
-      "expiryTime": 1776395521086
+      "loginTime": 1776409847388,
+      "expiryTime": 1776413447388
     }
   }
 }
