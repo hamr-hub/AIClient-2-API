@@ -1,20 +1,24 @@
-node_modules
-.serena/
-.claude/
-CLAUDE.md
-config.json
-provider_pools.json
-custom_models.json
-plugins.json
-fetch_system_prompt.txt
-input_system_prompt.txt
-token-store.json
-usage-cache.json
-*_oauth_creds.json
-*-auth-token.json
-api-potluck-keys.json
-api-potluck-data.json
-model-usage-stats.json
-AGENTS.md
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-logs/*
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

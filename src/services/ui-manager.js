@@ -129,6 +129,16 @@ export async function handleUIApiRequests(method, pathParam, req, res, currentCo
         return await providerApi.handleGetProviders(req, res, currentConfig, providerPoolManager);
     }
 
+    // Get provider static data (supported provider types - cacheable)
+    if (method === 'GET' && pathParam === '/api/providers/static') {
+        return await providerApi.handleGetProvidersStatic(req, res, currentConfig, providerPoolManager);
+    }
+
+    // Get provider dynamic data (status, active requests - real-time)
+    if (method === 'GET' && pathParam === '/api/providers/dynamic') {
+        return await providerApi.handleGetProvidersDynamic(req, res, currentConfig, providerPoolManager);
+    }
+
     // Get supported provider types based on registered adapters
     if (method === 'GET' && pathParam === '/api/providers/supported') {
         return await providerApi.handleGetSupportedProviders(req, res, currentConfig, providerPoolManager);

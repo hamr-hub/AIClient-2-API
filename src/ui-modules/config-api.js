@@ -117,8 +117,8 @@ export async function handleUpdateConfig(req, res, currentConfig) {
         // Update config values in memory（含类型校验）
         if (newConfig.REQUIRED_API_KEY !== undefined) {
             if (typeof newConfig.REQUIRED_API_KEY === 'string') {
-                // 如果是脱敏后的字符串，则忽略更新，保留原值
-                if (newConfig.REQUIRED_API_KEY !== '******') {
+                // 如果是脱敏后的字符串或空字符串，则忽略更新，保留原值
+                if (newConfig.REQUIRED_API_KEY !== '******' && newConfig.REQUIRED_API_KEY.trim() !== '') {
                     currentConfig.REQUIRED_API_KEY = newConfig.REQUIRED_API_KEY;
                 }
             }
@@ -132,6 +132,7 @@ export async function handleUpdateConfig(req, res, currentConfig) {
         }
         if (newConfig.MODEL_PROVIDER !== undefined) {
             currentConfig.MODEL_PROVIDER = newConfig.MODEL_PROVIDER;
+            currentConfig.DEFAULT_MODEL_PROVIDERS = [];
             normalizeConfiguredProviders(currentConfig);
         }
         if (newConfig.SYSTEM_PROMPT_FILE_PATH !== undefined) {

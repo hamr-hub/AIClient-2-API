@@ -29,14 +29,7 @@ async function loadSystemInfo() {
         const appVersionEl = document.getElementById('appVersion');
         const nodeVersionEl = document.getElementById('nodeVersion');
         const serverTimeEl = document.getElementById('serverTime');
-        const memoryUsageEl = document.getElementById('memoryUsage');
-        const cpuUsageEl = document.getElementById('cpuUsage');
         const uptimeEl = document.getElementById('uptime');
-        
-        // 统计卡片元素
-        const cpuValueEl = document.getElementById('cpuValue');
-        const memoryValueEl = document.getElementById('memoryValue');
-        const gpuValueEl = document.getElementById('gpuValue');
 
         if (appVersionEl) appVersionEl.textContent = data.appVersion ? `v${data.appVersion}` : '--';
         
@@ -46,13 +39,6 @@ async function loadSystemInfo() {
         }
 
         if (nodeVersionEl) nodeVersionEl.textContent = data.nodeVersion || '--';
-        if (memoryUsageEl) memoryUsageEl.textContent = data.memoryUsage || '--';
-        if (cpuUsageEl) cpuUsageEl.textContent = data.cpuUsage || '--';
-        
-        // 更新统计卡片显示
-        if (cpuValueEl) cpuValueEl.textContent = data.cpuUsage || '--';
-        if (memoryValueEl) memoryValueEl.textContent = data.memoryUsage || '--';
-        if (gpuValueEl) gpuValueEl.textContent = data.gpuUsage || '--';
         
         // 保存初始时间用于本地计算
         if (data.serverTime && data.uptime !== undefined) {
@@ -194,26 +180,22 @@ function updateTimeDisplay() {
 }
 
 /**
- * 加载提供商数据
- * @param {boolean} forceRefreshSupported - 是否强制刷新支持的提供商列表
+ * 加载提供商静态数据（支持的提供商类型列表）
+ * 静态数据：不随时间变化，适合缓存
  */
-async function loadProviders(forceRefreshSupported = false) {
+async function loadProvidersStatic() {
     try {
-        // 获取合并后的数据（包括 providers 和 supportedProviders）
-        const data = await window.apiClient.get('/providers');
-        if (!data || !data.providers) return;
+        const data = await window.apiClient.get('/providers/static');
+        if (!data || !data.supportedProviders) return;
 
-        const { providers, supportedProviders } = data;
+        const { supportedProviders } = data;
         
         // 检查支持列表是否发生了变化（或者是否尚未初始化）
         const isChanged = !cachedSupportedProviders || 
                          supportedProviders.length !== cachedSupportedProviders.length ||
                          supportedProviders.some((p, i) => p !== cachedSupportedProviders[i]);
 
-        // 如果强制刷新或是对象类型（可能是由事件触发），则也视为需要刷新
-        const shouldForce = forceRefreshSupported === true || (typeof forceRefreshSupported === 'object');
-
-        if (isChanged || shouldForce) {
+        if (isChanged) {
             cachedSupportedProviders = supportedProviders;
             const providerConfigs = getProviderConfigs(cachedSupportedProviders);
             
@@ -227,8 +209,39 @@ async function loadProviders(forceRefreshSupported = false) {
             
             isStaticProviderConfigsUpdated = true;
         }
+    } catch (error) {
+        console.error('Failed to load providers static data:', error);
+    }
+}
 
-        renderProviders(providers, cachedSupportedProviders);
+/**
+ * 加载提供商动态数据（状态、活跃请求数等）
+ * 动态数据：实时变化，需要频繁刷新
+ */
+async function loadProvidersDynamic() {
+    try {
+        const data = await window.apiClient.get('/providers/dynamic');
+        if (!data || !data.providers) return;
+
+        renderProviders(data.providers, cachedSupportedProviders);
+    } catch (error) {
+        console.error('Failed to load providers dynamic data:', error);
+    }
+}
+
+/**
+ * 加载提供商数据
+ * @param {boolean} forceRefreshSupported - 是否强制刷新支持的提供商列表
+ */
+async function loadProviders(forceRefreshSupported = false) {
+    try {
+        // 如果强制刷新或静态数据尚未更新，先加载静态数据
+        if (forceRefreshSupported === true || !isStaticProviderConfigsUpdated || !cachedSupportedProviders) {
+            await loadProvidersStatic();
+        }
+        
+        // 加载动态数据
+        await loadProvidersDynamic();
     } catch (error) {
         console.error('Failed to load providers:', error);
     }

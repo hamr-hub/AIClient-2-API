@@ -389,7 +389,9 @@ class PluginManager {
      * @returns {Promise<boolean>} - 是否已处理
      */
     async executeRoutes(method, path, req, res, config) {
-        for (const plugin of this.getEnabledPlugins()) {
+        let disabledPluginRoute = null;
+        
+        for (const plugin of this.plugins.values()) {
             if (!Array.isArray(plugin.routes)) continue;
             
             for (const route of plugin.routes) {
@@ -404,42 +406,30 @@ class PluginManager {
                 }
                 
                 if (pathMatch) {
-                    try {
-                        const handled = await route.handler(method, path, req, res, config);
-                        if (handled) return true;
-                    } catch (error) {
-                        logger.error(`[PluginManager] Route error in plugin "${plugin.name}":`, error.message);
+                    if (plugin._enabled) {
+                        try {
+                            const handled = await route.handler(method, path, req, res, config);
+                            if (handled) return true;
+                        } catch (error) {
+                            logger.error(`[PluginManager] Route error in plugin "${plugin.name}":`, error.message);
+                        }
+                    } else {
+                        disabledPluginRoute = plugin;
                     }
                 }
             }
         }
 
-        for (const plugin of this.plugins.values()) {
-            if (plugin._enabled || !Array.isArray(plugin.routes)) continue;
-
-            for (const route of plugin.routes) {
-                const methodMatch = route.method === '*' || route.method.toUpperCase() === method;
-                if (!methodMatch) continue;
-
-                let pathMatch = false;
-                if (route.path instanceof RegExp) {
-                    pathMatch = route.path.test(path);
-                } else if (typeof route.path === 'string') {
-                    pathMatch = path === route.path || path.startsWith(route.path + '/');
+        if (disabledPluginRoute) {
+            res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+                success: false,
+                error: {
+                    message: `插件未启用：${disabledPluginRoute.name}`,
+                    code: 'PLUGIN_DISABLED'
                 }
-
-                if (pathMatch) {
-                    res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
-                    res.end(JSON.stringify({
-                        success: false,
-                        error: {
-                            message: `插件未启用：${plugin.name}`,
-                            code: 'PLUGIN_DISABLED'
-                        }
-                    }));
-                    return true;
-                }
-            }
+            }));
+            return true;
         }
 
         return false;

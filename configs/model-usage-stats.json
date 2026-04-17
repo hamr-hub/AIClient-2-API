@@ -1,0 +1,51 @@
+{
+  "updatedAt": "2026-04-17T02:00:14.909Z",
+  "summary": {
+    "requestCount": 18,
+    "promptTokens": 88,
+    "completionTokens": 59,
+    "totalTokens": 147,
+    "cachedTokens": 0,
+    "lastUsedAt": "2026-04-17T02:00:14.909Z"
+  },
+  "providers": {
+    "openai-custom": {
+      "summary": {
+        "requestCount": 18,
+        "promptTokens": 88,
+        "completionTokens": 59,
+        "totalTokens": 147,
+        "cachedTokens": 0,
+        "lastUsedAt": "2026-04-17T02:00:14.909Z"
+      },
+      "models": {
+        "gemma-4-31b": {
+          "requestCount": 18,
+          "promptTokens": 88,
+          "completionTokens": 59,
+          "totalTokens": 147,
+          "cachedTokens": 0,
+          "lastUsedAt": "2026-04-17T02:00:14.909Z"
+        }
+      }
+    }
+  },
+  "daily": {
+    "2026-04-16": {
+      "requestCount": 17,
+      "promptTokens": 88,
+      "completionTokens": 59,
+      "totalTokens": 147,
+      "cachedTokens": 0,
+      "lastUsedAt": "2026-04-16T17:12:05.282Z"
+    },
+    "2026-04-17": {
+      "requestCount": 1,
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "cachedTokens": 0,
+      "lastUsedAt": "2026-04-17T02:00:14.909Z"
+    }
+  }
+}

@@ -371,7 +371,7 @@ export class ProviderPoolManager {
                     const nextTask = currentQueue.waitingTasks.shift();
                     currentQueue.activeCount++;
                     // 使用 Promise.resolve().then 避免过深的递归
-                    Promise.resolve().then(nextTask).catch(err => {
+                    Promise.resolve().then(() => nextTask()).catch(err => {
                         this._log('error', `Failed to execute next task for ${providerType}: ${err.message}`);
                     });
                 } else if (currentQueue.activeCount === 0) {
@@ -389,7 +389,7 @@ export class ProviderPoolManager {
                     // 3. 尝试启动下一个等待中的提供商队列
                     if (this.globalRefreshWaiters.length > 0) {
                         const nextProviderStart = this.globalRefreshWaiters.shift();
-                        Promise.resolve().then(nextProviderStart).catch(err => {
+                        Promise.resolve().then(() => nextProviderStart()).catch(err => {
                             this._log('error', `Failed to start next provider queue: ${err.message}`);
                         });
                     }
@@ -410,7 +410,8 @@ export class ProviderPoolManager {
 
         // 检查全局并发限制（按提供商分组）
         // 情况1: 该提供商已经在运行，直接加入其队列（不占用新的全局槽位）
-        const isExistingQueue = this.refreshQueues[providerType].activeCount > 0 || this.refreshQueues[providerType].waitingTasks.length > 0;
+        const existingQueue = this.refreshQueues[providerType];
+        const isExistingQueue = existingQueue && (existingQueue.activeCount > 0 || existingQueue.waitingTasks.length > 0);
         if (isExistingQueue) {
             tryStartProviderQueue();
         }
@@ -1215,7 +1216,8 @@ export class ProviderPoolManager {
                 return {
                     config: selectedConfig,
                     actualProviderType: currentType,
-                    isFallback: currentType !== providerType
+                    isFallback: currentType !== providerType,
+                    actualModel: requestedModel
                 };
             }
         }

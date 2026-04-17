@@ -3,35 +3,10 @@ import { getRequestBody } from './network-utils.js';
 import { convertData } from '../convert/convert.js';
 import { ProviderStrategyFactory } from './provider-strategies.js';
 import { getPluginManager } from '../core/plugin-manager.js';
-import { MODEL_PROVIDER } from './constants.js';
-import { MODEL_PROTOCOL_PREFIX } from './constants.js';
-import { handleStreamRequest, handleUnaryRequest, logConversation } from './request-handlers.js';
+import { MODEL_PROVIDER, MODEL_PROTOCOL_PREFIX } from './constants.js';
+import { handleStreamRequest, handleUnaryRequest, logConversation, getProtocolPrefix } from './request-handlers.js';
 import { getCustomModelConfig } from '../providers/provider-models.js';
-
-function resolveCustomModelRouting(model, currentProvider, customModelConfig) {
-    if (!customModelConfig) {
-        return {
-            isCustomModel: false,
-            model,
-            provider: currentProvider,
-            actualModel: model,
-            actualProvider: currentProvider,
-            config: null
-        };
-    }
-
-    const customActualProvider = customModelConfig.actualProvider || customModelConfig.provider;
-    const customActualModel = customModelConfig.actualModel || customModelConfig.id || model;
-
-    return {
-        isCustomModel: true,
-        model: customActualModel,
-        provider: customActualProvider || currentProvider,
-        actualModel: customActualModel,
-        actualProvider: customActualProvider || currentProvider,
-        config: customModelConfig
-    };
-}
+import { resolveCustomModelRouting } from './common.js';
 
 export async function handleContentGenerationRequest(req, res, service, endpointType, CONFIG, PROMPT_LOG_FILENAME, providerPoolManager, pooluuid, requestPath = null) {
     const originalRequestBody = await getRequestBody(req);
@@ -231,16 +206,4 @@ function _applyCustomModelParameters(requestBody, customConfig, provider) {
             }
         }
     });
-}
-
-export function getProtocolPrefix(provider) {
-    if (provider === 'openai-codex-oauth') {
-        return 'codex';
-    }
-
-    const hyphenIndex = provider.indexOf('-');
-    if (hyphenIndex !== -1) {
-        return provider.substring(0, hyphenIndex);
-    }
-    return provider;
 }

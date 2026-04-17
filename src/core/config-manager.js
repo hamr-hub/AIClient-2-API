@@ -248,7 +248,7 @@ function applyConfigValidation(config) {
 
 function normalizeConfiguredProviders(config) {
     const fallbackProvider = MODEL_PROVIDER.GEMINI_CLI;
-    const dedupedProviders = [];
+    let dedupedProviders = [];
 
     const addProvider = (value) => {
         if (typeof value !== 'string') {
@@ -268,13 +268,17 @@ function normalizeConfiguredProviders(config) {
         }
     };
 
-    const rawValue = config.MODEL_PROVIDER;
-    if (Array.isArray(rawValue)) {
-        rawValue.forEach((entry) => addProvider(typeof entry === 'string' ? entry : String(entry)));
-    } else if (typeof rawValue === 'string') {
-        rawValue.split(',').forEach(addProvider);
-    } else if (rawValue != null) {
-        addProvider(String(rawValue));
+    if (Array.isArray(config.DEFAULT_MODEL_PROVIDERS) && config.DEFAULT_MODEL_PROVIDERS.length > 0) {
+        config.DEFAULT_MODEL_PROVIDERS.forEach((entry) => addProvider(typeof entry === 'string' ? entry : String(entry)));
+    } else {
+        const rawValue = config.MODEL_PROVIDER;
+        if (Array.isArray(rawValue)) {
+            rawValue.forEach((entry) => addProvider(typeof entry === 'string' ? entry : String(entry)));
+        } else if (typeof rawValue === 'string') {
+            rawValue.split(',').forEach(addProvider);
+        } else if (rawValue != null) {
+            addProvider(String(rawValue));
+        }
     }
 
     if (dedupedProviders.length === 0) {

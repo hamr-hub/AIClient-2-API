@@ -100,6 +100,10 @@ export async function handleStreamRequest(res, service, model, requestBody, from
                 if (clientDisconnected.value) {
                     break;
                 }
+
+                if (chunk?.type === 'done') {
+                    continue;
+                }
                 
                 if (chunk.choices?.[0]?.delta?.tool_calls || chunk.choices?.[0]?.finish_reason === 'tool_calls') {
                     hasToolCall = true;

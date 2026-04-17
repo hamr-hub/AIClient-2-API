@@ -28,6 +28,8 @@ function collectSystemMetrics() {
     }
 }
 
+collectSystemMetrics();
+
 setInterval(collectSystemMetrics, 2000);
 
 /**

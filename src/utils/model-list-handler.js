@@ -3,6 +3,7 @@ import { MODEL_PROVIDER, MODEL_PROTOCOL_PREFIX } from './constants.js';
 import { convertData } from '../convert/convert.js';
 import { handleError } from './error-handler.js';
 import { getCustomModelConfig, usesManagedModelList, getConfiguredSupportedModels } from '../providers/provider-models.js';
+import { getProtocolPrefix } from './request-handlers.js';
 
 export const ENDPOINT_TYPE = {
     OPENAI_CHAT: 'openai_chat',
@@ -114,17 +115,7 @@ function appendCustomModelsToModelList(clientModelList, customEntries, providerT
     return clientModelList;
 }
 
-export function getProtocolPrefix(provider) {
-    if (provider === 'openai-codex-oauth') {
-        return 'codex';
-    }
 
-    const hyphenIndex = provider.indexOf('-');
-    if (hyphenIndex !== -1) {
-        return provider.substring(0, hyphenIndex);
-    }
-    return provider;
-}
 
 export async function handleModelListRequest(req, res, service, endpointType, CONFIG, providerPoolManager, pooluuid) {
     const clientProviderMap = {

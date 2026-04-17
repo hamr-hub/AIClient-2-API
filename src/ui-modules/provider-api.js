@@ -350,6 +350,86 @@ export async function handleGetSupportedProviders(req, res, currentConfig, provi
 }
 
 /**
+ * 获取提供商静态数据（支持的提供商类型列表）
+ * 静态数据：不随时间变化，适合缓存
+ */
+export async function handleGetProvidersStatic(req, res, currentConfig, providerPoolManager) {
+    const registeredProviders = getRegisteredProviders();
+    let poolTypes = [];
+
+    const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
+    try {
+        if (providerPoolManager && providerPoolManager.providerPools) {
+            poolTypes = Object.keys(providerPoolManager.providerPools);
+        } else if (filePath && existsSync(filePath)) {
+            const poolsData = JSON.parse(readFileSync(filePath, 'utf-8'));
+            poolTypes = Object.keys(poolsData);
+        }
+    } catch (error) {
+        logger.warn('[UI API] Failed to load provider pools for static data:', error.message);
+    }
+
+    const supportedProviders = [...new Set([...registeredProviders, ...poolTypes])];
+    
+    res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'max-age=300'
+    });
+    res.end(JSON.stringify({ supportedProviders }));
+    return true;
+}
+
+/**
+ * 获取提供商动态数据（状态、活跃请求数等）
+ * 动态数据：实时变化，需要频繁刷新
+ */
+export async function handleGetProvidersDynamic(req, res, currentConfig, providerPoolManager) {
+    const providerStatus = {};
+    
+    if (providerPoolManager) {
+        for (const [type, providers] of Object.entries(providerPoolManager.providerStatus)) {
+            providerStatus[type] = providers.map(p => ({
+                ...p.config,
+                activeRequests: p.state?.activeCount || 0,
+                waitingRequests: p.state?.waitingCount || 0
+            }));
+        }
+    }
+    
+    const filePath = currentConfig.PROVIDER_POOLS_FILE_PATH || 'configs/provider_pools.json';
+    try {
+        if (existsSync(filePath)) {
+            const poolsData = JSON.parse(readFileSync(filePath, 'utf-8'));
+            const poolTypes = Object.keys(poolsData);
+            
+            poolTypes.forEach(type => {
+                if (!providerStatus[type] || providerStatus[type].length === 0) {
+                    const fileProviders = poolsData[type] || [];
+                    if (fileProviders.length > 0) {
+                        providerStatus[type] = fileProviders.map(p => ({
+                            ...p,
+                            activeRequests: 0,
+                            waitingRequests: 0
+                        }));
+                    } else if (!providerStatus[type]) {
+                        providerStatus[type] = [];
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        logger.warn('[UI API] Failed to supplement provider dynamic status:', error.message);
+    }
+
+    res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+    });
+    res.end(JSON.stringify({ providers: sanitizeProviderPools(providerStatus, true) }));
+    return true;
+}
+
+/**
  * 获取所有提供商的可用模型（支持动态配置组）
  */
 export async function handleGetProviderModels(req, res, currentConfig, providerPoolManager) {

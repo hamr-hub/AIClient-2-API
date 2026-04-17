@@ -17,9 +17,7 @@ export { handleContentGenerationRequest, _manageSystemPrompt, extractPromptText 
 
 export { handleError } from './error-handler.js';
 
-import { getProtocolPrefix as requestHandlersPrefix } from './request-handlers.js';
-import { getProtocolPrefix as modelListPrefix } from './model-list-handler.js';
-import { getProtocolPrefix as contentHandlerPrefix } from './content-handler.js';
+export { getProtocolPrefix } from './request-handlers.js';
 
 export const FETCH_SYSTEM_PROMPT_FILE = './configs/fetch_system_prompt.txt';
 export const INPUT_SYSTEM_PROMPT_FILE = './configs/input_system_prompt.txt';
@@ -28,10 +26,6 @@ export const API_ACTIONS = {
     GENERATE_CONTENT: 'generateContent',
     STREAM_GENERATE_CONTENT: 'streamGenerateContent',
 };
-
-export function getProtocolPrefix(provider) {
-    return requestHandlersPrefix(provider);
-}
 
 export function resolveCustomModelRouting(model, currentProvider, customModelConfig) {
     if (!customModelConfig) {
