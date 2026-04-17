@@ -1,5 +1,5 @@
 {
-  "REQUIRED_API_KEY": "sk-cadc5f84f7317cf1d610ebd5f2e6925e",
+  "REQUIRED_API_KEY": "sk-2e3513944ecac08f466a2e01872ba91d",
   "SERVER_PORT": 30000,
   "HOST": "0.0.0.0",
   "MODEL_PROVIDER": "openai-custom",
@@ -38,6 +38,7 @@
   "TLS_SIDECAR_ENABLED_PROVIDERS": [],
   "TLS_SIDECAR_PORT": 9090,
   "TLS_SIDECAR_PROXY_URL": null,
+  "CONTROLLER_BASE_URL": "http://192.168.7.103:5000",
   "SCHEDULED_HEALTH_CHECK": {
     "enabled": false,
     "startupRun": false,

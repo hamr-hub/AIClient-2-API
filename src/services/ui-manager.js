@@ -21,9 +21,23 @@ export { broadcastEvent, initializeUIManagement, handleUploadOAuthCredentials, u
  * Serve static files for the UI
  * @param {string} pathParam - The request path
  * @param {http.ServerResponse} res - The HTTP response object
+ * @param {Object} [currentConfig] - The current configuration object (optional)
  */
-export async function serveStaticFiles(pathParam, res) {
-    const filePath = path.join(process.cwd(), 'static', pathParam === '/' || pathParam === '/index.html' ? 'index.html' : pathParam.replace('/static/', ''));
+export async function serveStaticFiles(pathParam, res, currentConfig = {}) {
+    let filePath;
+    
+    if (pathParam === '/' || pathParam === '/index.html') {
+        filePath = path.join(process.cwd(), 'dist', 'index.html');
+        if (!existsSync(filePath)) {
+            filePath = path.join(process.cwd(), 'static', 'index.html');
+        }
+    } else {
+        const strippedPath = pathParam.replace('/static/', '');
+        filePath = path.join(process.cwd(), 'dist', strippedPath);
+        if (!existsSync(filePath)) {
+            filePath = path.join(process.cwd(), 'static', strippedPath);
+        }
+    }
 
     if (existsSync(filePath)) {
         const ext = path.extname(filePath);
@@ -33,11 +47,22 @@ export async function serveStaticFiles(pathParam, res) {
             '.js': 'application/javascript',
             '.png': 'image/png',
             '.jpg': 'image/jpeg',
-            '.ico': 'image/x-icon'
+            '.ico': 'image/x-icon',
+            '.svg': 'image/svg+xml'
         }[ext] || 'text/plain';
 
+        let content = readFileSync(filePath);
+        
+        if (ext === '.html') {
+            const controllerBaseUrl = currentConfig.CONTROLLER_BASE_URL || 'http://localhost:5000';
+            content = content.toString().replace(
+                /window\.CONTROLLER_BASE_URL = window\.CONTROLLER_BASE_URL \|\|[\s\S]*?'http:\/\/localhost:5000';/,
+                `window.CONTROLLER_BASE_URL = '${controllerBaseUrl}';`
+            );
+        }
+
         res.writeHead(200, { 'Content-Type': contentType });
-        res.end(readFileSync(filePath));
+        res.end(content);
         return true;
     }
     return false;
@@ -57,6 +82,11 @@ export async function handleUIApiRequests(method, pathParam, req, res, currentCo
     // 处理登录接口
     if (method === 'POST' && pathParam === '/api/login') {
         return await auth.handleLoginRequest(req, res);
+    }
+
+    // 验证登录Token接口（用于前端检查登录状态）
+    if (method === 'GET' && pathParam === '/api/validate-token') {
+        return await auth.handleValidateToken(req, res);
     }
 
     // 健康检查接口（用于前端token验证）

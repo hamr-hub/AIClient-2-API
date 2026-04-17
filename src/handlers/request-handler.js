@@ -95,8 +95,8 @@ export function createRequestHandler(config, providerPoolManager) {
                     }));
                     return;
                 }
-                if (path.startsWith('/static/') || path === '/' || path === '/favicon.ico' || path === '/index.html' || path.startsWith('/app/') || path.startsWith('/components/') || path === '/login.html' || isPluginStatic) {
-                    const served = await serveStaticFiles(path, res);
+                if (path.startsWith('/static/') || path === '/' || path === '/favicon.ico' || path === '/index.html' || path.startsWith('/app/') || path.startsWith('/components/') || path === '/login.html' || isPluginStatic || path.startsWith('/assets/') || path === '/vite.svg' || path.startsWith('/@vite/')) {
+                    const served = await serveStaticFiles(path, res, currentConfig);
                     if (served) return;
                 }
 
