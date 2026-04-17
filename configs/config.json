@@ -1,5 +1,5 @@
 {
-  "REQUIRED_API_KEY": "sk-890dada0f0666676b8942bb66b5c2e9d",
+  "REQUIRED_API_KEY": "sk-cadc5f84f7317cf1d610ebd5f2e6925e",
   "SERVER_PORT": 30000,
   "HOST": "0.0.0.0",
   "MODEL_PROVIDER": "openai-custom",

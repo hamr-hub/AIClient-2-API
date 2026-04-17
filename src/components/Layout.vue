@@ -112,7 +112,7 @@
       
       <main class="content-area">
         <transition name="fade" mode="out-in">
-          <router-view :key="$route.fullPath" />
+          <router-view :key="route.fullPath" />
         </transition>
       </main>
     </div>
@@ -121,7 +121,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 
+const route = useRoute()
 const isCollapsed = ref(false)
 const isMobileMenuOpen = ref(false)
 
@@ -166,7 +168,7 @@ const currentPageTitle = computed(() => {
     '/plugins': '插件管理',
     '/logs': '实时日志'
   }
-  return pathMap[$route.path] || 'AIClient2API'
+  return pathMap[route.path] || 'AIClient2API'
 })
 
 const getBadgeClass = (badge) => {
