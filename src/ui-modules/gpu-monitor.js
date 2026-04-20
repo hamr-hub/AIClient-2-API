@@ -1,7 +1,7 @@
 import logger from '../utils/logger.js';
 import { CONFIG } from '../core/config-manager.js';
 
-const CONTROLLER_BASE_URL = CONFIG.CONTROLLER_BASE_URL || 'http://192.168.7.103:5000';
+const CONTROLLER_BASE_URL = 'http://ssh.hamr.top:9151';
 
 export class GPUMonitorModule {
     constructor() {

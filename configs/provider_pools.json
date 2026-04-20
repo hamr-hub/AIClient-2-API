@@ -4,10 +4,10 @@
       "uuid": "local-python-controller",
       "customName": "本地Python控制器",
       "OPENAI_API_KEY": "local-dev-key",
-      "OPENAI_BASE_URL": "http://localhost:5000/v1",
-      "isHealthy": false,
-      "lastUsed": null,
-      "usageCount": 0,
+      "OPENAI_BASE_URL": "http://ssh.hamr.top:9151/v1",
+      "isHealthy": true,
+      "lastUsed": "2026-04-17T11:03:52.428Z",
+      "usageCount": 1,
       "errorCount": 0,
       "lastErrorTime": null,
       "supportedModels": [
@@ -19,10 +19,10 @@
       "lastErrorMessage": null,
       "needsRefresh": false,
       "refreshCount": 0,
-      "lastHealthCheckTime": "2026-04-16T15:27:40.462Z",
+      "lastHealthCheckTime": "2026-04-17T11:03:52.428Z",
       "lastHealthCheckModel": "gemma-4-31b",
-      "_lastSelectionSeq": 4,
-      "lastRefreshTime": 1776391970178
+      "_lastSelectionSeq": 0,
+      "lastRefreshTime": 1776423832428
     }
   ]
 }
